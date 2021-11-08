@@ -5,9 +5,9 @@
 //    INF01047 Fundamentos de Computação Gráfica
 //               Prof. Eduardo Gastal
 //
-//                   LABORATÓRIO 4
+//             Bibiana Duarte - 00297635
+//                 Trabalho Final
 //
-
 // Arquivos "headers" padrões de C podem ser incluídos em um
 // programa C++, sendo necessário somente adicionar o caractere
 // "c" antes de seu nome, e remover o sufixo ".h". Exemplo:
@@ -185,6 +185,35 @@ GLint view_uniform;
 GLint projection_uniform;
 GLint object_id_uniform;
 
+#define PI 3.14159265358979323846f
+
+GLfloat ball_diameter = 2.0f;
+GLfloat ball_radius = ball_diameter / 2;
+
+GLfloat field_length = 125.0f;
+GLfloat field_width = 110.0f;
+GLfloat field_height = 10.0f;
+
+GLfloat goal_length = 0.55f;
+GLfloat goal_width = 7.32f;
+GLfloat goal_height = 2.4f;
+
+GLfloat car_length = 2.7f;
+GLfloat car_width = 2.0f;
+GLfloat car_height = 1.2f;
+
+GLfloat car_to_ball_initial_distance = field_length / 4;
+
+GLfloat our_car_current_position_x = 0.0f;
+GLfloat our_car_current_position_y = car_height / 2;
+GLfloat our_car_current_position_z = car_to_ball_initial_distance;
+
+GLfloat enemy_car_current_position_x = 0.0f;
+GLfloat enemy_car_current_position_y = car_height / 2;
+GLfloat enemy_car_current_position_z = -car_to_ball_initial_distance;
+
+GLfloat camera_offset_to_car = 1.0f;
+
 int main(int argc, char* argv[])
 {
     // Inicializamos a biblioteca GLFW, utilizada para criar uma janela do
@@ -214,7 +243,7 @@ int main(int argc, char* argv[])
     // Criamos uma janela do sistema operacional, com 800 colunas e 600 linhas
     // de pixels, e com título "INF01047 ...".
     GLFWwindow* window;
-    window = glfwCreateWindow(800, 600, "INF01047 - 00297635 - Bibiana Duarte", NULL, NULL);
+    window = glfwCreateWindow(800, 600, "Carritos", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -263,9 +292,6 @@ int main(int argc, char* argv[])
     ComputeNormals(&spheremodel);
     BuildTrianglesAndAddToVirtualScene(&spheremodel);
 
-    ObjModel bunnymodel("../../data/bunny.obj");
-    ComputeNormals(&bunnymodel);
-    BuildTrianglesAndAddToVirtualScene(&bunnymodel);
 
     ObjModel planemodel("../../data/plane.obj");
     ComputeNormals(&planemodel);
@@ -326,7 +352,7 @@ int main(int argc, char* argv[])
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        glm::vec4 camera_position_c  = glm::vec4(x,y,z,1.0f); // Ponto "c", centro da câmera
+        glm::vec4 camera_position_c  = glm::vec4(our_car_current_position_x, our_car_current_position_y + camera_offset_to_car, our_car_current_position_z, 1.0f); // Ponto "c", centro da câmera
         glm::vec4 camera_lookat_l    = glm::vec4(0.0f,0.0f,0.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
         glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
         glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
@@ -341,7 +367,7 @@ int main(int argc, char* argv[])
         // Note que, no sistema de coordenadas da câmera, os planos near e far
         // estão no sentido negativo! Veja slides 176-204 do documento Aula_09_Projecoes.pdf.
         float nearplane = -0.1f;  // Posição do "near plane"
-        float farplane  = -10.0f; // Posição do "far plane"
+        float farplane  = -1.1f * std::max(field_width + goal_width, field_length + goal_length); // Posição do "far plane"
 
         if (g_UsePerspectiveProjection)
         {
@@ -372,32 +398,106 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
-        #define SPHERE 0
-        #define BUNNY  1
-        #define PLANE  2
+        #define BALL 0
+        #define FLOOR 1
+        #define WALL 2
+        #define OUR_CAR 3
+        #define ENEMY_CAR 4
 
-        // Desenhamos o modelo da esfera
-        model = Matrix_Translate(-1.0f,0.0f,0.0f);
+        // Desenho a bola
+        model = Matrix_Translate(0, ball_radius, 0)
+                * Matrix_Scale(ball_diameter / 2, ball_diameter / 2, ball_diameter / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, SPHERE);
+        glUniform1i(object_id_uniform, BALL);
         DrawVirtualObject("sphere");
 
-        // Desenhamos o modelo do coelho
-        model = Matrix_Translate(1.0f,0.0f,0.0f)
-              * Matrix_Rotate_Z(g_AngleZ)
-              * Matrix_Rotate_Y(g_AngleY)
-              * Matrix_Rotate_X(g_AngleX);
+        // Desenho o chão
+        model = Matrix_Translate(0, 0, 0)
+                * Matrix_Scale(field_width / 2, 1, field_length / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, BUNNY);
-        DrawVirtualObject("bunny");
-
-
-        // Desenho do plano
-        model = Matrix_Translate(0.0f,-1.0f,0.0f)
-                *Matrix_Scale(2.0f,1.0f,2.0f); 
-        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, PLANE);
+        glUniform1i(object_id_uniform, FLOOR);
         DrawVirtualObject("plane");
+
+        // Desenho as paredes laterais
+        model = Matrix_Translate(field_width / 2, field_height / 2, 0)
+                * Matrix_Rotate_Z(PI / 2)
+                * Matrix_Scale(field_height / 2, 1, field_length / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(-field_width / 2, field_height / 2, 0)
+                * Matrix_Rotate_Z(-PI / 2)
+                * Matrix_Scale(field_height / 2, 1, field_length / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        // Desenho as paredes traseiras
+        // XXXXXXXXXXXXX
+        // XXXXXXXXXXXXX
+        // XXXXXXXXXXXXX
+        // XXXXX   XXXXX
+        // XXXXX   XXXXX
+
+        model = Matrix_Translate(0, goal_height + (field_height - goal_height) / 2, field_length / 2)
+                * Matrix_Rotate_X(-PI / 2)
+                * Matrix_Scale(field_width / 2, 1, (field_height - goal_height) / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(goal_width / 2 + (field_width - goal_width) / 4, goal_height / 2, field_length / 2)
+                * Matrix_Rotate_X(-PI / 2)
+                * Matrix_Scale((field_width - goal_width / 2) / 4, 1, goal_height / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(-(goal_width / 2 + (field_width - goal_width) / 4), goal_height / 2, field_length / 2)
+                * Matrix_Rotate_X(-PI / 2)
+                * Matrix_Scale((field_width - goal_width / 2) / 4, 1, goal_height / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+
+        model = Matrix_Translate(0, goal_height + (field_height - goal_height) / 2, -field_length / 2)
+                * Matrix_Rotate_X(PI / 2)
+                * Matrix_Scale(field_width / 2, 1, (field_height - goal_height) / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(goal_width / 2 + (field_width - goal_width) / 4, goal_height / 2, -field_length / 2)
+                * Matrix_Rotate_X(PI / 2)
+                * Matrix_Scale((field_width - goal_width / 2) / 4, 1, goal_height / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(-(goal_width / 2 + (field_width - goal_width) / 4), goal_height / 2, -field_length / 2)
+                * Matrix_Rotate_X(PI / 2)
+                * Matrix_Scale((field_width - goal_width / 2) / 4, 1, goal_height / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        // Desenho os carros
+
+        model = Matrix_Translate(our_car_current_position_x, our_car_current_position_y, our_car_current_position_z)
+                * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, OUR_CAR);
+        DrawVirtualObject("sphere");
+
+        model = Matrix_Translate(enemy_car_current_position_x, enemy_car_current_position_y, enemy_car_current_position_z)
+                * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, ENEMY_CAR);
+        DrawVirtualObject("sphere");
+
+
 
         // Pegamos um vértice com coordenadas de modelo (0.5, 0.5, 0.5, 1) e o
         // passamos por todos os sistemas de coordenadas armazenados nas

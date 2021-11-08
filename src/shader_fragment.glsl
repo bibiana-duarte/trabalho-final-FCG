@@ -13,9 +13,11 @@ uniform mat4 view;
 uniform mat4 projection;
 
 // Identificador que define qual objeto está sendo desenhado no momento
-#define SPHERE 0
-#define BUNNY  1
-#define PLANE  2
+#define BALL 0
+#define FLOOR 1
+#define WALL 2
+#define OUR_CAR 3
+#define ENEMY_CAR 4
 uniform int object_id;
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
@@ -54,38 +56,46 @@ void main()
     vec3 Ka; // Refletância ambiente
     float q; // Expoente especular para o modelo de iluminação de Phong
 
-    if ( object_id == SPHERE )
+    if ( object_id == BALL )
     {
-        // PREENCHA AQUI
-        // Propriedades espectrais da esfera
-        Kd = vec3(0.8, 0.4, 0.08); // refletância da superfície   
-        Ks = vec3(0.0, 0.0, 0.0); // refletância especular da superficie 
-        Ka = Kd/2; // refletância ambiente da superficie
-        q = 1.0; // expoente de Phong
-    }
-    else if ( object_id == BUNNY )
-    {
-        // PREENCHA AQUI
-        // Propriedades espectrais do coelho
-        Kd = vec3(0.08,0.4,0.8);
-        Ks = vec3(0.8,0.8,0.8);
+        Kd = vec3(0.8, 0.8, 0.8);
+        Ks = vec3(0.0, 0.0, 0.0);
         Ka = Kd/2;
-        q = 32.0;
+        q = 1.0;
     }
-    else if ( object_id == PLANE )
+    else if ( object_id == FLOOR )
     {
-        // PREENCHA AQUI
-        // Propriedades espectrais do plano
+        Kd = vec3(0.05,0.3,0.05);
+        Ks = vec3(0.0,0.0,0.0);
+        Ka = Kd/2;
+        q = 1.0;
+    }
+    else if ( object_id == WALL )
+    {
         Kd = vec3(0.2,0.2,0.2);
         Ks = vec3(0.3,0.3,0.3);
-        Ka = vec3(0.0,0.0,0.0);
-        q = 20.0;
+        Ka = Kd/2;
+        q = 1.0;
+    }
+    else if ( object_id == OUR_CAR )
+    {
+        Kd = vec3(0.29, 0.0, 0.51);
+        Ks = vec3(0.0, 0.0, 0.0);
+        Ka = Kd/2;
+        q = 1.0;
+    }
+    else if ( object_id == ENEMY_CAR )
+    {
+        Kd = vec3(0.8, 0.4, 0.08);
+        Ks = vec3(0.0, 0.0, 0.0);
+        Ka = Kd/2;
+        q = 1.0;
     }
     else // Objeto desconhecido = preto
     {
         Kd = vec3(0.0,0.0,0.0);
         Ks = vec3(0.0,0.0,0.0);
-        Ka = vec3(0.0,0.0,0.0);
+        Ka = Kd/2;
         q = 1.0;
     }
 
