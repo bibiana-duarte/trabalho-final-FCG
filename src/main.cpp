@@ -208,7 +208,6 @@ glm::vec4 enemy_car_current_position = glm::vec4(0.0f, car_height / 2, -car_to_b
 GLfloat our_car_current_direction = 0;
 GLfloat enemy_car_current_direction = PI;
 
-GLfloat camera_offset_to_car = 2.0f;
 GLfloat camera_direction = 0;
 
 GLboolean is_looking_at_ball = false;
@@ -342,31 +341,42 @@ int main(int argc, char* argv[])
         // os shaders de vértice e fragmentos).
         glUseProgram(program_id);
         
+        GLint screen_width, screen_height;
+        glfwGetWindowSize(window, &screen_width, &screen_height);
         GLdouble cursor_position_x, cursor_position_y;
         glfwGetCursorPos(window, &cursor_position_x, &cursor_position_y);
-        camera_direction -= 0.000015f * (cursor_position_x - 650);
+        glfwSetCursorPos(window, screen_width / 2, screen_height / 2);
+        GLdouble cursor_position = std::min(1.0, std::max(-1.0, 2 * (cursor_position_x / screen_width) - 1));
+        camera_direction -= 1.5f * cursor_position;
         while (camera_direction < 0)
         {
             camera_direction += 2 * PI;
         }
+        while (camera_direction >= 2 * PI)
+        {
+            camera_direction -= 2 * PI;
+        }
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        glm::vec4 camera_position_c  = Matrix_Translate(0, camera_offset_to_car, 5) * our_car_current_position; // Ponto "c", centro da câmera
+
+        glm::vec4 camera_offset_to_car = glm::vec4(0, 1.8, 2 + 5 * cos(camera_direction), 1); // Quando olha pra frente (angulo 0) fica 7 metros atrás do carro, quando olha pra trás fica 3 metros a frente do carro, e sempre 1,8 metros acima do carro uhul
+        glm::vec4 camera_position = Matrix_Translate(our_car_current_position.x, our_car_current_position.y, our_car_current_position.z) * Matrix_Rotate_Y(our_car_current_direction) * camera_offset_to_car; // Ponto "c", centro da câmera
+
         glm::vec4 camera_view_vector; // Vetor "view", sentido para onde a câmera está virada
         if (is_looking_at_ball)
         {
-            camera_view_vector = ball_current_position - camera_position_c; // Câmera Lookat
+            camera_view_vector = ball_current_position - camera_position; // Câmera Lookat
         }
         else
         {
-            camera_view_vector = Matrix_Rotate_Y(camera_direction) * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
+            camera_view_vector = Matrix_Rotate_Y(camera_direction + our_car_current_direction) * glm::vec4(0, 0, -1, 0);
         }
-        glm::vec4 camera_up_vector   = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+        glm::vec4 camera_up_vector   = glm::vec4(0, 1, 0, 0); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
 
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-        glm::mat4 view = Matrix_Camera_View(camera_position_c, camera_view_vector, camera_up_vector);
+        glm::mat4 view = Matrix_Camera_View(camera_position, camera_view_vector, camera_up_vector);
 
         // Agora computamos a matriz de Projeção.
         glm::mat4 projection;
@@ -1139,13 +1149,13 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 
     GLfloat turn_constant = 10.0f;
 
-    // Se o usuário apertar a tecla W, giramos o carro pra esquerda.
+    // Se o usuário apertar a tecla W, giramos o carro pra frente.
     if (key == GLFW_KEY_W && action == GLFW_PRESS)
     {
         our_car_current_position += Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
     }
 
-    // Se o usuário apertar a tecla S, giramos o carro pra direita.
+    // Se o usuário apertar a tecla S, giramos o carro pra trás.
     if (key == GLFW_KEY_S && action == GLFW_PRESS)
     {
         our_car_current_position -= Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
