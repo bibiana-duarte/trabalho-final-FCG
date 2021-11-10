@@ -46,6 +46,9 @@
 #include "utils.h"
 #include "matrices.h"
 
+#include "./constants.hpp"
+#include "./collisions.hpp"
+
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
 struct ObjModel
@@ -181,27 +184,9 @@ GLint view_uniform;
 GLint projection_uniform;
 GLint object_id_uniform;
 
-#define PI 3.14159265358979323846f
-
-GLfloat ball_diameter = 2.0f;
-GLfloat ball_radius = ball_diameter / 2;
-
-GLfloat field_length = 125.0f;
-GLfloat field_width = 110.0f;
-GLfloat field_height = 10.0f;
-
-GLfloat goal_length = 0.55f;
-GLfloat goal_width = 7.32f;
-GLfloat goal_height = 2.4f;
-
-GLfloat car_length = 2.7f;
-GLfloat car_width = 2.0f;
-GLfloat car_height = 1.2f;
-
 GLfloat car_to_ball_initial_distance = field_length / 4;
 
 glm::vec4 ball_current_position = glm::vec4(0.0f, ball_radius, 0, 1);
-
 glm::vec4 our_car_current_position = glm::vec4(0.0f, car_height / 2, car_to_ball_initial_distance, 1);
 glm::vec4 enemy_car_current_position = glm::vec4(0.0f, car_height / 2, -car_to_ball_initial_distance, 1);
 
@@ -214,6 +199,11 @@ GLboolean is_looking_at_ball = false;
 
 GLfloat last_frame_time;
 GLfloat current_frame_time = glfwGetTime();
+
+GLboolean is_our_car_moving_left = false;
+GLboolean is_our_car_moving_right = false;
+GLboolean is_our_car_moving_front = false;
+GLboolean is_our_car_moving_back = false;
 
 int main(int argc, char* argv[])
 {
@@ -355,6 +345,32 @@ int main(int argc, char* argv[])
         while (camera_direction >= 2 * PI)
         {
             camera_direction -= 2 * PI;
+        }
+
+        if (is_our_car_moving_front)
+        {
+            our_car_current_position += 30.0f * (current_frame_time - last_frame_time) * Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
+        }
+        if (is_our_car_moving_back)
+        {
+            our_car_current_position -= 20.0f * (current_frame_time - last_frame_time) * Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
+        }
+        if (is_our_car_moving_right)
+        {
+            our_car_current_direction -= 5.0f * (current_frame_time - last_frame_time);
+        }
+        if (is_our_car_moving_left)
+        {
+            our_car_current_direction += 5.0f * (current_frame_time - last_frame_time);
+        }
+
+        while (our_car_current_direction < 0)
+        {
+            our_car_current_direction += 2 * PI;
+        }
+        while (our_car_current_direction >= 2 * PI)
+        {
+            our_car_current_direction -= 2 * PI;
         }
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
@@ -1073,112 +1089,48 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 // tecla do teclado. Veja http://www.glfw.org/docs/latest/input_guide.html#input_key
 void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 {
-    // ==============
-    // Não modifique este loop! Ele é utilizando para correção automatizada dos
-    // laboratórios. Deve ser sempre o primeiro comando desta função KeyCallback().
-    for (int i = 0; i < 10; ++i)
-        if (key == GLFW_KEY_0 + i && action == GLFW_PRESS && mod == GLFW_MOD_SHIFT)
-            std::exit(100 + i);
-    // ==============
-
     // Se o usuário pressionar a tecla ESC, fechamos a janela.
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
 
-    // O código abaixo implementa a seguinte lógica:
-    //   Se apertar tecla X       então g_AngleX += delta;
-    //   Se apertar tecla shift+X então g_AngleX -= delta;
-    //   Se apertar tecla Y       então g_AngleY += delta;
-    //   Se apertar tecla shift+Y então g_AngleY -= delta;
-    //   Se apertar tecla Z       então g_AngleZ += delta;
-    //   Se apertar tecla shift+Z então g_AngleZ -= delta;
-
-    float delta = 3.141592 / 16; // 22.5 graus, em radianos.
-
-    if (key == GLFW_KEY_X && action == GLFW_PRESS)
-    {
-        g_AngleX += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
-    }
-
-    if (key == GLFW_KEY_Y && action == GLFW_PRESS)
-    {
-        g_AngleY += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
-    }
-    if (key == GLFW_KEY_Z && action == GLFW_PRESS)
-    {
-        g_AngleZ += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
-    }
-
-    // Se o usuário apertar a tecla espaço, resetamos os ângulos de Euler para zero.
-    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
-    {
-        g_AngleX = 0.0f;
-        g_AngleY = 0.0f;
-        g_AngleZ = 0.0f;
-        g_ForearmAngleX = 0.0f;
-        g_ForearmAngleZ = 0.0f;
-        g_TorsoPositionX = 0.0f;
-        g_TorsoPositionY = 0.0f;
-    }
-
-    // Se o usuário apertar a tecla P, utilizamos projeção perspectiva.
-    if (key == GLFW_KEY_P && action == GLFW_PRESS)
-    {
-        g_UsePerspectiveProjection = true;
-    }
-
-    // Se o usuário apertar a tecla O, utilizamos projeção ortográfica.
-    if (key == GLFW_KEY_O && action == GLFW_PRESS)
-    {
-        g_UsePerspectiveProjection = false;
-    }
-
-    // Se o usuário apertar a tecla H, fazemos um "toggle" do texto informativo mostrado na tela.
-    if (key == GLFW_KEY_H && action == GLFW_PRESS)
-    {
-        g_ShowInfoText = !g_ShowInfoText;
-    }
-
-    // Se o usuário apertar a tecla R, recarregamos os shaders dos arquivos "shader_fragment.glsl" e "shader_vertex.glsl".
-    if (key == GLFW_KEY_R && action == GLFW_PRESS)
-    {
-        LoadShadersFromFiles();
-        fprintf(stdout,"Shaders recarregados!\n");
-        fflush(stdout);
-    }
-
-    GLfloat turn_constant = 10.0f;
-
     // Se o usuário apertar a tecla W, giramos o carro pra frente.
     if (key == GLFW_KEY_W && action == GLFW_PRESS)
     {
-        our_car_current_position += Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
+        is_our_car_moving_front = true;
+    }
+    if (key == GLFW_KEY_W && action == GLFW_RELEASE)
+    {
+        is_our_car_moving_front = false;
     }
 
     // Se o usuário apertar a tecla S, giramos o carro pra trás.
     if (key == GLFW_KEY_S && action == GLFW_PRESS)
     {
-        our_car_current_position -= Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
+        is_our_car_moving_back = true;
+    }
+    if (key == GLFW_KEY_S && action == GLFW_RELEASE)
+    {
+        is_our_car_moving_back = false;
     }
 
     // Se o usuário apertar a tecla A, giramos o carro pra esquerda.
     if (key == GLFW_KEY_A && action == GLFW_PRESS)
     {
-        our_car_current_direction += turn_constant * (current_frame_time - last_frame_time);
-        while (our_car_current_direction >= 2 * PI)
-        {
-            our_car_current_direction -= 2 * PI;
-        }
+        is_our_car_moving_left = true;
+    }
+    if (key == GLFW_KEY_A && action == GLFW_RELEASE)
+    {
+        is_our_car_moving_left = false;
     }
 
     // Se o usuário apertar a tecla D, giramos o carro pra direita.
     if (key == GLFW_KEY_D && action == GLFW_PRESS)
     {
-        our_car_current_direction -= turn_constant * (current_frame_time - last_frame_time);
-        while (our_car_current_direction < 0)
-        {
-            our_car_current_direction += 2 * PI;
-        }
+        is_our_car_moving_right = true;
+    }
+    if (key == GLFW_KEY_D && action == GLFW_RELEASE)
+    {
+        is_our_car_moving_right = false;
     }
 
     // Se o usuário apertar a tecla C, mudamos o tipo de câmera yay
