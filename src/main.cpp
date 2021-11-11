@@ -186,10 +186,11 @@ GLint object_id_uniform;
 
 GLfloat car_to_ball_initial_distance = field_length / 4;
 
-glm::vec4 ball_current_position = glm::vec4(0.0f, ball_radius, 0, 1);
-glm::vec4 our_car_current_position = glm::vec4(0.0f, car_height / 2, car_to_ball_initial_distance, 1);
-glm::vec4 enemy_car_current_position = glm::vec4(0.0f, car_height / 2, -car_to_ball_initial_distance, 1);
+glm::vec4 ball_current_position = glm::vec4(0, ball_radius, 0, 1);
+glm::vec4 our_car_current_position = glm::vec4(0, car_height / 2, car_to_ball_initial_distance, 1);
+glm::vec4 enemy_car_current_position = glm::vec4(0, car_height / 2, -car_to_ball_initial_distance, 1);
 
+glm::vec4 ball_current_speed = glm::vec4(0, 0, 0, 0);
 GLfloat our_car_current_direction = 0;
 GLfloat enemy_car_current_direction = PI;
 
@@ -330,7 +331,7 @@ int main(int argc, char* argv[])
         // Pedimos para a GPU utilizar o programa de GPU criado acima (contendo
         // os shaders de vértice e fragmentos).
         glUseProgram(program_id);
-        
+
         GLint screen_width, screen_height;
         glfwGetWindowSize(window, &screen_width, &screen_height);
         GLdouble cursor_position_x, cursor_position_y;
@@ -347,30 +348,48 @@ int main(int argc, char* argv[])
             camera_direction -= 2 * PI;
         }
 
+        glm::vec4 our_car_new_position = our_car_current_position;
+        GLfloat our_car_new_direction = our_car_current_direction;
+
         if (is_our_car_moving_front)
         {
-            our_car_current_position += 30.0f * (current_frame_time - last_frame_time) * Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
+            our_car_new_position += 30.0f * (current_frame_time - last_frame_time) * Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
         }
         if (is_our_car_moving_back)
         {
-            our_car_current_position -= 20.0f * (current_frame_time - last_frame_time) * Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
+            our_car_new_position -= 20.0f * (current_frame_time - last_frame_time) * Matrix_Rotate_Y(our_car_current_direction) * glm::vec4(0, 0, -1, 0);
         }
         if (is_our_car_moving_right)
         {
-            our_car_current_direction -= 5.0f * (current_frame_time - last_frame_time);
+            our_car_new_direction -= 5.0f * (current_frame_time - last_frame_time);
         }
         if (is_our_car_moving_left)
         {
-            our_car_current_direction += 5.0f * (current_frame_time - last_frame_time);
+            our_car_new_direction += 5.0f * (current_frame_time - last_frame_time);
         }
 
-        while (our_car_current_direction < 0)
+        while (our_car_new_direction < 0)
         {
-            our_car_current_direction += 2 * PI;
+            our_car_new_direction += 2 * PI;
         }
-        while (our_car_current_direction >= 2 * PI)
+        while (our_car_new_direction >= 2 * PI)
         {
-            our_car_current_direction -= 2 * PI;
+            our_car_new_direction -= 2 * PI;
+        }
+
+        if (not is_colliding_car_to_scenario(our_car_new_position, our_car_new_direction))
+        {
+            our_car_current_position = our_car_new_position;
+            our_car_current_direction = our_car_new_direction;
+        }
+
+        glm::vec4 ball_new_position = ball_current_position;
+
+        ball_new_position += (current_frame_time - last_frame_time) * ball_current_speed;
+
+        if (is_colliding_ball_to_car(ball_new_position, our_car_current_position, our_car_current_direction))
+        {
+            ball_current_speed = (ball_new_position - our_car_current_position) / norm(ball_new_position - our_car_current_position);
         }
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
@@ -1133,7 +1152,7 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
         is_our_car_moving_right = false;
     }
 
-    // Se o usuário apertar a tecla C, mudamos o tipo de câmera yay
+    // Se o usuário apertar a tecla C, mudamos o tipo de câmera yay \o/
     if (key == GLFW_KEY_C && action == GLFW_PRESS)
     {
         is_looking_at_ball = !is_looking_at_ball;
