@@ -31,23 +31,23 @@
 #include <algorithm>
 
 // Headers das bibliotecas OpenGL
-#include <glad/glad.h>   // Criação de contexto OpenGL 3.3
-#include <GLFW/glfw3.h>  // Criação de janelas do sistema operacional
+#include "../include/glad/glad.h"   // Criação de contexto OpenGL 3.3
+#include "../include/GLFW/glfw3.h"  // Criação de janelas do sistema operacional
 
 // Headers da biblioteca GLM: criação de matrizes e vetores.
-#include <glm/mat4x4.hpp>
-#include <glm/vec4.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include "../include/glm/mat4x4.hpp"
+#include "../include/glm/vec4.hpp"
+#include "../include/glm/gtc/type_ptr.hpp"
 
 // Headers da biblioteca para carregar modelos obj
-#include <tiny_obj_loader.h>
+#include "../include/tiny_obj_loader.h"
 
 // Headers locais, definidos na pasta "include/"
-#include "utils.h"
-#include "matrices.h"
+#include "../include/utils.h"
+#include "../include/matrices.h"
 
-#include "./constants.hpp"
-#include "./collisions.hpp"
+#include "../include/constants.hpp"
+#include "../include/collisions.hpp"
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .

@@ -101,6 +101,8 @@
 		<Unit filename="include/GLFW/glfw3.h" />
 		<Unit filename="include/GLFW/glfw3native.h" />
 		<Unit filename="include/KHR/khrplatform.h" />
+		<Unit filename="include/collisions.hpp" />
+		<Unit filename="include/constants.hpp" />
 		<Unit filename="include/dejavufont.h" />
 		<Unit filename="include/glad/glad.h" />
 		<Unit filename="include/glm/CMakeLists.txt" />
@@ -369,8 +371,7 @@
 		<Unit filename="include/tiny_obj_loader.h" />
 		<Unit filename="include/utils.h" />
 		<Unit filename="src/collisions.cpp" />
-		<Unit filename="src/collisions.hpp" />
-		<Unit filename="src/constants.hpp" />
+		<Unit filename="src/constants.cpp" />
 		<Unit filename="src/glad.c">
 			<Option compilerVar="CC" />
 		</Unit>

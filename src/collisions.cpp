@@ -1,8 +1,8 @@
-#include "./collisions.hpp"
+#include "../include/collisions.hpp"
 
-#include "./constants.hpp"
-#include <glad/glad.h>
-#include <glm/vec4.hpp>
+#include "../include/constants.hpp"
+#include "../include/glad/glad.h"
+#include "../include/glm/vec4.hpp"
 #include <cmath>
 #include <algorithm>
 
@@ -107,3 +107,5 @@ bool is_colliding_ball_to_enemy_goal(glm::vec4 ball_position)
     }
     return false;
 }
+
+
