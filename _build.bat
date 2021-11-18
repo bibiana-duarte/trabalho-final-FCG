@@ -1,0 +1,1 @@
+g++.exe -o ./bin/Release/carritos.exe .\src\*.c .\src\*.cpp lib\libglfw3.a -lgdi32 -lopengl32 -Iinclude -Isrc -O0

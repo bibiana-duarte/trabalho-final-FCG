@@ -20,4 +20,6 @@ extern GLfloat car_length;
 extern GLfloat car_width;
 extern GLfloat car_height;
 
+extern GLfloat car_to_ball_initial_distance;
+
 #endif

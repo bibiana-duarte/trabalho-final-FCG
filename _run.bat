@@ -1,0 +1,1 @@
+start /d "./bin/Release/" carritos.exe
