@@ -2,8 +2,17 @@
 #define _CONSTANTS_H
 
 #include "./glad/glad.h"
+#include "../include/glm/vec4.hpp"
 
 #define PI 3.14159265358979323846f
+
+#define ZERO glm::vec4(0, 0, 0, 0)
+#define EAST glm::vec4(1, 0, 0, 0)
+#define WEST glm::vec4(-1, 0, 0, 0)
+#define UP glm::vec4(0, 1, 0, 0)
+#define DOWN glm::vec4(0, -1, 0, 0)
+#define SOUTH glm::vec4(0, 0, 1, 0)
+#define NORTH glm::vec4(0, 0, -1, 0)
 
 extern GLfloat ball_diameter;
 extern GLfloat ball_radius;

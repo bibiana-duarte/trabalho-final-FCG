@@ -29,6 +29,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <algorithm>
+#include <iostream>
 
 // Headers das bibliotecas OpenGL
 #include "../include/glad/glad.h"   // Criação de contexto OpenGL 3.3
@@ -187,24 +188,38 @@ glm::vec4 our_car_position;
 glm::vec4 enemy_car_position;
 glm::vec4 ball_position;
 
-glm::vec4 our_car_speed;
-glm::vec4 enemy_car_speed;
-glm::vec4 ball_speed = glm::vec4(0, 0, 0, 0);
+glm::vec4 our_car_speed = ZERO;
+glm::vec4 enemy_car_speed = ZERO;
+glm::vec4 ball_speed = ZERO;
 
-GLfloat our_car_direction = PI;
-GLfloat enemy_car_direction = 0;
+glm::vec4 our_car_direction = NORTH;
+glm::vec4 enemy_car_direction = SOUTH;
 
-GLfloat camera_direction = 0;
+GLfloat our_camera_direction = 0;
+GLfloat enemy_camera_direction = 0;
+
+GLfloat our_car_direction_angle;
+GLfloat enemy_car_direction_angle;
 
 GLboolean is_looking_at_ball = false;
 
 GLfloat last_frame_time;
 GLfloat current_frame_time = glfwGetTime();
+GLfloat time_between_frames;
 
 GLboolean is_our_car_moving_left = false;
 GLboolean is_our_car_moving_right = false;
 GLboolean is_our_car_moving_front = false;
 GLboolean is_our_car_moving_back = false;
+GLboolean is_our_camera_looking_back = false;
+
+GLboolean is_enemy_car_moving_left = false;
+GLboolean is_enemy_car_moving_right = false;
+GLboolean is_enemy_car_moving_front = false;
+GLboolean is_enemy_car_moving_back = false;
+GLboolean is_enemy_camera_looking_back = false;
+
+GLboolean is_our_turn = true;
 
 int main(int argc, char* argv[])
 {
@@ -288,7 +303,7 @@ int main(int argc, char* argv[])
     ComputeNormals(&carritomodel);
     BuildTrianglesAndAddToVirtualScene(&carritomodel);
 
-    if ( argc > 1 )
+    if (argc > 1)
     {
         ObjModel model(argv[1]);
         BuildTrianglesAndAddToVirtualScene(&model);
@@ -320,6 +335,7 @@ int main(int argc, char* argv[])
     {
         last_frame_time = current_frame_time;
         current_frame_time = glfwGetTime();
+        time_between_frames = current_frame_time - last_frame_time;
 
         // Aqui executamos as operações de renderização
 
@@ -339,73 +355,104 @@ int main(int argc, char* argv[])
         // os shaders de vértice e fragmentos).
         glUseProgram(program_id);
 
-        GLint screen_width, screen_height;
-        glfwGetWindowSize(window, &screen_width, &screen_height);
-        GLdouble cursor_position_x, cursor_position_y;
-        glfwGetCursorPos(window, &cursor_position_x, &cursor_position_y);
-        glfwSetCursorPos(window, screen_width / 2, screen_height / 2);
-        GLdouble cursor_position = std::min(1.0, std::max(-1.0, 2 * (cursor_position_x / screen_width) - 1));
-        camera_direction -= 1.5f * cursor_position;
-        while (camera_direction < 0)
+        if (norm(our_car_speed) > 0)
         {
-            camera_direction += 2 * PI;
+            our_car_speed *= std::pow(0.6, time_between_frames);
+            our_car_speed *= std::pow(0.02, time_between_frames * (1 - abs(our_car_direction.x * our_car_speed.x + our_car_direction.z * our_car_speed.z) / norm(our_car_speed)));
         }
-        while (camera_direction >= 2 * PI)
-        {
-            camera_direction -= 2 * PI;
-        }
-
+        // our_car_speed *= std::pow(0.3, time_between_frames);
+        enemy_car_speed *= std::pow(0.3, time_between_frames);
+        ball_speed *= std::pow(0.8, time_between_frames);
+        
         glm::vec4 our_car_new_position = our_car_position;
-        GLfloat our_car_new_direction = our_car_direction;
+        glm::vec4 our_car_new_speed = our_car_speed;
+        glm::vec4 our_car_new_direction = our_car_direction;
 
         if (is_our_car_moving_front)
         {
-            our_car_new_position -= 30.0f * (current_frame_time - last_frame_time) * Matrix_Rotate_Y(our_car_direction) * glm::vec4(0, 0, -1, 0);
+            our_car_new_speed += 30.0f * time_between_frames * our_car_direction;
         }
         if (is_our_car_moving_back)
         {
-            our_car_new_position += 20.0f * (current_frame_time - last_frame_time) * Matrix_Rotate_Y(our_car_direction) * glm::vec4(0, 0, -1, 0);
+            our_car_new_speed -= 20.0f * time_between_frames * our_car_direction;
         }
+
+        our_car_new_position += time_between_frames * our_car_new_speed;
+
         if (is_our_car_moving_right)
         {
-            our_car_new_direction -= 5.0f * (current_frame_time - last_frame_time);
+            our_car_new_direction = Matrix_Rotate_Y(-5.0f * time_between_frames) * our_car_new_direction;
         }
         if (is_our_car_moving_left)
         {
-            our_car_new_direction += 5.0f * (current_frame_time - last_frame_time);
-        }
-
-        while (our_car_new_direction < 0)
-        {
-            our_car_new_direction += 2 * PI;
-        }
-        while (our_car_new_direction >= 2 * PI)
-        {
-            our_car_new_direction -= 2 * PI;
+            our_car_new_direction = Matrix_Rotate_Y(+5.0f * time_between_frames) * our_car_new_direction;
         }
 
         if (not is_colliding_car_to_scenario(our_car_new_position, our_car_new_direction))
         {
             our_car_position = our_car_new_position;
+            our_car_speed = our_car_new_speed;
             our_car_direction = our_car_new_direction;
         }
+        else
+        {
+            our_car_speed = ZERO;
+        }
+        
+        glm::vec4 enemy_car_new_position = enemy_car_position;
+        glm::vec4 enemy_car_new_speed = enemy_car_speed;
+        glm::vec4 enemy_car_new_direction = enemy_car_direction;
 
-        ball_speed *= std::pow(0.8, current_frame_time - last_frame_time);
+        if (is_enemy_car_moving_front)
+        {
+            enemy_car_new_speed += 30.0f * time_between_frames * enemy_car_direction;
+        }
+        if (is_enemy_car_moving_back)
+        {
+            enemy_car_new_speed -= 20.0f * time_between_frames * enemy_car_direction;
+        }
+
+        enemy_car_new_position += time_between_frames * enemy_car_new_speed;
+
+        if (is_enemy_car_moving_right)
+        {
+            enemy_car_new_direction = Matrix_Rotate_Y(-5.0f * time_between_frames) * enemy_car_new_direction;
+        }
+        if (is_enemy_car_moving_left)
+        {
+            enemy_car_new_direction = Matrix_Rotate_Y(+5.0f * time_between_frames) * enemy_car_new_direction;
+        }
+
+        if (not is_colliding_car_to_scenario(enemy_car_new_position, enemy_car_new_direction))
+        {
+            enemy_car_position = enemy_car_new_position;
+            enemy_car_speed = enemy_car_new_speed;
+            enemy_car_direction = enemy_car_new_direction;
+        }
+        else
+        {
+            enemy_car_speed = ZERO;
+        }
+
+        our_car_direction_angle = atan2(-our_car_direction.x, -our_car_direction.z);
+        enemy_car_direction_angle = atan2(-enemy_car_direction.x, -enemy_car_direction.z);
 
         glm::vec4 ball_new_position = ball_position;
 
-        ball_new_position += (current_frame_time - last_frame_time) * ball_speed;
+        ball_new_position += time_between_frames * ball_speed;
 
         if (is_colliding_ball_to_car(ball_new_position, our_car_position, our_car_direction))
         {
             ball_speed = 35.0f * (ball_new_position - our_car_position) / norm(ball_new_position - our_car_position);
             ball_speed.y = 0;
+            is_our_turn = false;
         }
 
         if (is_colliding_ball_to_car(ball_new_position, enemy_car_position, enemy_car_direction))
         {
             ball_speed = 35.0f * (ball_new_position - enemy_car_position) / norm(ball_new_position - enemy_car_position);
             ball_speed.y = 0;
+            is_our_turn = true;
         }
 
         if (is_colliding_ball_to_scenario(ball_new_position) and not (is_colliding_ball_to_our_goal(ball_new_position) or is_colliding_ball_to_enemy_goal(ball_new_position) or abs(ball_new_position.z) > field_length / 2))
@@ -416,30 +463,74 @@ int main(int argc, char* argv[])
 
         if (abs(ball_new_position.z) > field_length / 2)
         {
-            ball_speed.y -= std::pow(9.8f, current_frame_time - last_frame_time); 
+            ball_speed.y -= std::pow(9.8f, time_between_frames); 
         }
 
         ball_position = ball_new_position;
 
+        GLint screen_width, screen_height;
+        glfwGetWindowSize(window, &screen_width, &screen_height);
+        GLdouble cursor_position_x, cursor_position_y;
+        glfwGetCursorPos(window, &cursor_position_x, &cursor_position_y);
+        glfwSetCursorPos(window, screen_width / 2, screen_height / 2);
+        GLdouble cursor_position = std::min(1.0, std::max(-1.0, 2 * (cursor_position_x / screen_width) - 1));
+        our_camera_direction -= 1.5f * cursor_position;
+        while (our_camera_direction < PI)
+        {
+            our_camera_direction += 2 * PI;
+        }
+        while (our_camera_direction >= PI)
+        {
+            our_camera_direction -= 2 * PI;
+        }
+
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
 
-        glm::vec4 camera_offset_to_car = glm::vec4(0, 1.8, -2 - 5 * cos(camera_direction), 1); // Quando olha pra frente (angulo 0) fica 7 metros atrás do carro, quando olha pra trás fica 3 metros a frente do carro, e sempre 1,8 metros acima do carro uhul
-        glm::vec4 camera_position = Matrix_Translate(our_car_position.x, our_car_position.y, our_car_position.z) * Matrix_Rotate_Y(our_car_direction) * camera_offset_to_car; // Ponto "c", centro da câmera
+        glm::vec4 car_position;
+        GLfloat camera_direction;
+        GLfloat car_direction_angle;
+        GLboolean is_camera_looking_back;
 
-        glm::vec4 camera_view_vector; // Vetor "view", sentido para onde a câmera está virada
+        if (is_our_turn)
+        {
+            car_position = our_car_position;
+            camera_direction = our_camera_direction;
+            car_direction_angle = our_car_direction_angle;
+            is_camera_looking_back = is_our_camera_looking_back;
+        }
+        else
+        {
+            car_position = enemy_car_position;
+            camera_direction = enemy_camera_direction;
+            car_direction_angle = enemy_car_direction_angle;
+            is_camera_looking_back = is_enemy_camera_looking_back;
+        }
+
+        glm::vec4 camera_offset_to_car;
+        glm::vec4 camera_position;
+        glm::vec4 camera_view_vector;
+        glm::vec4 camera_up_vector;
+
+        if (is_looking_at_ball)
+        {
+            camera_offset_to_car = glm::vec4(0, 1.8, 2, 1);
+        }
+        else
+        {
+            camera_offset_to_car = glm::vec4(0, 1.8, 2 + 5 * cos((is_camera_looking_back? PI : 0) + camera_direction), 1); // Quando olha pra frente (angulo 0) fica 7 metros atrás do carro, quando olha pra trás fica 3 metros a frente do carro, e sempre 1,8 metros acima do carro uhul
+        }
+        camera_position = Matrix_Translate(car_position.x, car_position.y, car_position.z) * Matrix_Rotate_Y(car_direction_angle) * camera_offset_to_car;
         if (is_looking_at_ball)
         {
             camera_view_vector = ball_position - camera_position; // Câmera Lookat
         }
         else
         {
-            camera_view_vector = Matrix_Rotate_Y(camera_direction + our_car_direction) * glm::vec4(0, 0, 1, 0);
+            camera_view_vector = Matrix_Rotate_Y((is_camera_looking_back? PI : 0) + camera_direction + car_direction_angle) * NORTH;
         }
-        glm::vec4 camera_up_vector   = glm::vec4(0, 1, 0, 0); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+        camera_up_vector = UP;
 
-        // Computamos a matriz "View" utilizando os parâmetros da câmera para
-        // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
         glm::mat4 view = Matrix_Camera_View(camera_position, camera_view_vector, camera_up_vector);
 
         // Agora computamos a matriz de Projeção.
@@ -567,14 +658,14 @@ int main(int argc, char* argv[])
         // Desenho os carros
 
         model = Matrix_Translate(our_car_position.x, our_car_position.y, our_car_position.z)
-                * Matrix_Rotate_Y(our_car_direction)
+                * Matrix_Rotate_Y(our_car_direction_angle + PI)
                 * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, OUR_CAR);
         DrawVirtualObject("carrito");
 
         model = Matrix_Translate(enemy_car_position.x, enemy_car_position.y, enemy_car_position.z)
-                * Matrix_Rotate_Y(enemy_car_direction)
+                * Matrix_Rotate_Y(enemy_car_direction_angle + PI)
                 * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, ENEMY_CAR);
@@ -721,7 +812,7 @@ void ComputeNormals(ObjModel* model)
     size_t num_vertices = model->attrib.vertices.size() / 3;
 
     std::vector<int> num_triangles_per_vertex(num_vertices, 0);
-    std::vector<glm::vec4> vertex_normals(num_vertices, glm::vec4(0.0f,0.0f,0.0f,0.0f));
+    std::vector<glm::vec4> vertex_normals(num_vertices, ZERO);
 
     for (size_t shape = 0; shape < model->shapes.size(); ++shape)
     {
@@ -1079,53 +1170,13 @@ double g_LastCursorPosX, g_LastCursorPosY;
 // Função callback chamada sempre que o usuário aperta algum dos botões do mouse
 void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
-    {
-        // Se o usuário pressionou o botão esquerdo do mouse, guardamos a
-        // posição atual do cursor nas variáveis g_LastCursorPosX e
-        // g_LastCursorPosY.  Também, setamos a variável
-        // g_LeftMouseButtonPressed como true, para saber que o usuário está
-        // com o botão esquerdo pressionado.
-        glfwGetCursorPos(window, &g_LastCursorPosX, &g_LastCursorPosY);
-        g_LeftMouseButtonPressed = true;
-    }
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
-    {
-        // Quando o usuário soltar o botão esquerdo do mouse, atualizamos a
-        // variável abaixo para false.
-        g_LeftMouseButtonPressed = false;
-    }
     if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
     {
-        // Se o usuário pressionou o botão esquerdo do mouse, guardamos a
-        // posição atual do cursor nas variáveis g_LastCursorPosX e
-        // g_LastCursorPosY.  Também, setamos a variável
-        // g_RightMouseButtonPressed como true, para saber que o usuário está
-        // com o botão esquerdo pressionado.
-        glfwGetCursorPos(window, &g_LastCursorPosX, &g_LastCursorPosY);
-        g_RightMouseButtonPressed = true;
+        is_our_camera_looking_back = true;
     }
     if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
     {
-        // Quando o usuário soltar o botão esquerdo do mouse, atualizamos a
-        // variável abaixo para false.
-        g_RightMouseButtonPressed = false;
-    }
-    if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS)
-    {
-        // Se o usuário pressionou o botão esquerdo do mouse, guardamos a
-        // posição atual do cursor nas variáveis g_LastCursorPosX e
-        // g_LastCursorPosY.  Também, setamos a variável
-        // g_MiddleMouseButtonPressed como true, para saber que o usuário está
-        // com o botão esquerdo pressionado.
-        glfwGetCursorPos(window, &g_LastCursorPosX, &g_LastCursorPosY);
-        g_MiddleMouseButtonPressed = true;
-    }
-    if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_RELEASE)
-    {
-        // Quando o usuário soltar o botão esquerdo do mouse, atualizamos a
-        // variável abaixo para false.
-        g_MiddleMouseButtonPressed = false;
+        is_our_camera_looking_back = false;
     }
 }
 
@@ -1176,9 +1227,65 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     {
         is_our_car_moving_right = false;
     }
+    
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    {
+        our_camera_direction = 0;
+    }
 
     // Se o usuário apertar a tecla C, mudamos o tipo de câmera yay \o/
     if (key == GLFW_KEY_C && action == GLFW_PRESS)
+    {
+        is_looking_at_ball = !is_looking_at_ball;
+    }
+
+    // Se o usuário apertar a tecla UP, giramos o carro pra frente.
+    if (key == GLFW_KEY_UP && action == GLFW_PRESS)
+    {
+        is_enemy_car_moving_front = true;
+    }
+    if (key == GLFW_KEY_UP && action == GLFW_RELEASE)
+    {
+        is_enemy_car_moving_front = false;
+    }
+
+    // Se o usuário apertar a tecla DOWN, giramos o carro pra trás.
+    if (key == GLFW_KEY_DOWN && action == GLFW_PRESS)
+    {
+        is_enemy_car_moving_back = true;
+    }
+    if (key == GLFW_KEY_DOWN && action == GLFW_RELEASE)
+    {
+        is_enemy_car_moving_back = false;
+    }
+
+    // Se o usuário apertar a tecla LEFT, giramos o carro pra esquerda.
+    if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
+    {
+        is_enemy_car_moving_left = true;
+    }
+    if (key == GLFW_KEY_LEFT && action == GLFW_RELEASE)
+    {
+        is_enemy_car_moving_left = false;
+    }
+
+    // Se o usuário apertar a tecla RIGHT, giramos o carro pra direita.
+    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+    {
+        is_enemy_car_moving_right = true;
+    }
+    if (key == GLFW_KEY_RIGHT && action == GLFW_RELEASE)
+    {
+        is_enemy_car_moving_right = false;
+    }
+    
+    if (key == GLFW_KEY_RIGHT_CONTROL && action == GLFW_PRESS)
+    {
+        enemy_camera_direction = 0;
+    }
+
+    // Se o usuário apertar a tecla 0, mudamos o tipo de câmera yay \o/
+    if (key == GLFW_KEY_0 && action == GLFW_PRESS)
     {
         is_looking_at_ball = !is_looking_at_ball;
     }
