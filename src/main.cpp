@@ -250,7 +250,8 @@ int main(int argc, char* argv[])
     // Criamos uma janela do sistema operacional, com 800 colunas e 600 linhas
     // de pixels, e com título "INF01047 ...".
     GLFWwindow* window;
-    window = glfwCreateWindow(1280, 720, "Carritos", NULL, NULL);
+    window = glfwCreateWindow(1600, 720, "Carritos", NULL, NULL);
+    g_ScreenRatio = 1600.0f / 720.0f;
     if (!window)
     {
         glfwTerminate();
@@ -271,11 +272,11 @@ int main(int argc, char* argv[])
     // biblioteca GLAD.
     gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
 
-    // Definimos a função de callback que será chamada sempre que a janela for
-    // redimensionada, por consequência alterando o tamanho do "framebuffer"
-    // (região de memória onde são armazenados os pixels da imagem).
-    glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
-    FramebufferSizeCallback(window, 1280, 720); // Forçamos a chamada do callback acima, para definir g_ScreenRatio.
+    // // Definimos a função de callback que será chamada sempre que a janela for
+    // // redimensionada, por consequência alterando o tamanho do "framebuffer"
+    // // (região de memória onde são armazenados os pixels da imagem).
+    // glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
+    // FramebufferSizeCallback(window, 1280, 720); // Forçamos a chamada do callback acima, para definir g_ScreenRatio.
 
     // Imprimimos no terminal informações sobre a GPU do sistema
     const GLubyte *vendor      = glGetString(GL_VENDOR);
@@ -468,21 +469,21 @@ int main(int argc, char* argv[])
 
         ball_position = ball_new_position;
 
-        GLint screen_width, screen_height;
-        glfwGetWindowSize(window, &screen_width, &screen_height);
-        GLdouble cursor_position_x, cursor_position_y;
-        glfwGetCursorPos(window, &cursor_position_x, &cursor_position_y);
-        glfwSetCursorPos(window, screen_width / 2, screen_height / 2);
-        GLdouble cursor_position = std::min(1.0, std::max(-1.0, 2 * (cursor_position_x / screen_width) - 1));
-        our_camera_direction -= 1.5f * cursor_position;
-        while (our_camera_direction < PI)
-        {
-            our_camera_direction += 2 * PI;
-        }
-        while (our_camera_direction >= PI)
-        {
-            our_camera_direction -= 2 * PI;
-        }
+        // GLint screen_width, screen_height;
+        // glfwGetWindowSize(window, &screen_width, &screen_height);
+        // GLdouble cursor_position_x, cursor_position_y;
+        // glfwGetCursorPos(window, &cursor_position_x, &cursor_position_y);
+        // glfwSetCursorPos(window, screen_width / 2, screen_height / 2);
+        // GLdouble cursor_position = std::min(1.0, std::max(-1.0, 2 * (cursor_position_x / screen_width) - 1));
+        // our_camera_direction -= 1.5f * cursor_position;
+        // while (our_camera_direction < PI)
+        // {
+        //     our_camera_direction += 2 * PI;
+        // }
+        // while (our_camera_direction >= PI)
+        // {
+        //     our_camera_direction -= 2 * PI;
+        // }
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
@@ -491,26 +492,27 @@ int main(int argc, char* argv[])
         GLfloat camera_direction;
         GLfloat car_direction_angle;
         GLboolean is_camera_looking_back;
-
-        if (is_our_turn)
-        {
-            car_position = our_car_position;
-            camera_direction = our_camera_direction;
-            car_direction_angle = our_car_direction_angle;
-            is_camera_looking_back = is_our_camera_looking_back;
-        }
-        else
-        {
-            car_position = enemy_car_position;
-            camera_direction = enemy_camera_direction;
-            car_direction_angle = enemy_car_direction_angle;
-            is_camera_looking_back = is_enemy_camera_looking_back;
-        }
-
         glm::vec4 camera_offset_to_car;
         glm::vec4 camera_position;
         glm::vec4 camera_view_vector;
         glm::vec4 camera_up_vector;
+        glm::mat4 view;
+        glm::mat4 projection;
+
+
+        // Note que, no sistema de coordenadas da câmera, os planos near e far
+        // estão no sentido negativo! Veja slides 176-204 do documento Aula_09_Projecoes.pdf.
+        float nearplane = -0.1f;  // Posição do "near plane"
+        float farplane  = field_width + field_length + field_height; // Posição do "far plane"
+
+        glm::mat4 model = Matrix_Identity(); // Transformação identidade de modelagem
+
+
+        car_position = our_car_position;
+        camera_direction = our_camera_direction;
+        car_direction_angle = our_car_direction_angle;
+        is_camera_looking_back = is_our_camera_looking_back;
+        glViewport(0, 0, 800, 720);
 
         if (is_looking_at_ball)
         {
@@ -531,15 +533,7 @@ int main(int argc, char* argv[])
         }
         camera_up_vector = UP;
 
-        glm::mat4 view = Matrix_Camera_View(camera_position, camera_view_vector, camera_up_vector);
-
-        // Agora computamos a matriz de Projeção.
-        glm::mat4 projection;
-
-        // Note que, no sistema de coordenadas da câmera, os planos near e far
-        // estão no sentido negativo! Veja slides 176-204 do documento Aula_09_Projecoes.pdf.
-        float nearplane = -0.1f;  // Posição do "near plane"
-        float farplane  = field_width + field_length + field_height; // Posição do "far plane"
+        view = Matrix_Camera_View(camera_position, camera_view_vector, camera_up_vector);
 
         if (g_UsePerspectiveProjection)
         {
@@ -562,14 +556,12 @@ int main(int argc, char* argv[])
             projection = Matrix_Orthographic(l, r, b, t, nearplane, farplane);
         }
 
-        glm::mat4 model = Matrix_Identity(); // Transformação identidade de modelagem
-
         // Enviamos as matrizes "view" e "projection" para a placa de vídeo
         // (GPU). Veja o arquivo "shader_vertex.glsl", onde estas são
         // efetivamente aplicadas em todos os pontos.
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
-
+        
         #define BALL 0
         #define FLOOR 1
         #define WALL 2
@@ -671,7 +663,160 @@ int main(int argc, char* argv[])
         glUniform1i(object_id_uniform, ENEMY_CAR);
         DrawVirtualObject("carrito");
 
+        car_position = enemy_car_position;
+        camera_direction = enemy_camera_direction;
+        car_direction_angle = enemy_car_direction_angle;
+        is_camera_looking_back = is_enemy_camera_looking_back;
+        glViewport(800, 0, 800, 720);
 
+        if (is_looking_at_ball)
+        {
+            camera_offset_to_car = glm::vec4(0, 1.8, 2, 1);
+        }
+        else
+        {
+            camera_offset_to_car = glm::vec4(0, 1.8, 2 + 5 * cos((is_camera_looking_back? PI : 0) + camera_direction), 1); // Quando olha pra frente (angulo 0) fica 7 metros atrás do carro, quando olha pra trás fica 3 metros a frente do carro, e sempre 1,8 metros acima do carro uhul
+        }
+        camera_position = Matrix_Translate(car_position.x, car_position.y, car_position.z) * Matrix_Rotate_Y(car_direction_angle) * camera_offset_to_car;
+        if (is_looking_at_ball)
+        {
+            camera_view_vector = ball_position - camera_position; // Câmera Lookat
+        }
+        else
+        {
+            camera_view_vector = Matrix_Rotate_Y((is_camera_looking_back? PI : 0) + camera_direction + car_direction_angle) * NORTH;
+        }
+        camera_up_vector = UP;
+
+        view = Matrix_Camera_View(camera_position, camera_view_vector, camera_up_vector);
+
+        if (g_UsePerspectiveProjection)
+        {
+            // Projeção Perspectiva.
+            // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
+            float field_of_view = 3.141592 / 3.0f;
+            projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
+        }
+        else
+        {
+            // Projeção Ortográfica.
+            // Para definição dos valores l, r, b, t ("left", "right", "bottom", "top"),
+            // PARA PROJEÇÃO ORTOGRÁFICA veja slides 219-224 do documento Aula_09_Projecoes.pdf.
+            // Para simular um "zoom" ortográfico, computamos o valor de "t"
+            // utilizando a variável g_CameraDistance.
+            float t = 1.5f * g_CameraDistance/2.5f;
+            float b = -t;
+            float r = t * g_ScreenRatio;
+            float l = -r;
+            projection = Matrix_Orthographic(l, r, b, t, nearplane, farplane);
+        }
+
+        // Enviamos as matrizes "view" e "projection" para a placa de vídeo
+        // (GPU). Veja o arquivo "shader_vertex.glsl", onde estas são
+        // efetivamente aplicadas em todos os pontos.
+        glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
+        glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
+        
+        #define BALL 0
+        #define FLOOR 1
+        #define WALL 2
+        #define OUR_CAR 3
+        #define ENEMY_CAR 4
+
+        // Desenho a bola
+        model = Matrix_Translate(ball_position.x, ball_position.y, ball_position.z)
+                * Matrix_Scale(ball_diameter / 2, ball_diameter / 2, ball_diameter / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, BALL);
+        DrawVirtualObject("sphere");
+
+        // Desenho o chão
+        model = Matrix_Translate(0, 0, 0)
+                * Matrix_Scale(field_width / 2, 1, field_length / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, FLOOR);
+        DrawVirtualObject("plane");
+
+        // Desenho as paredes laterais
+        model = Matrix_Translate(field_width / 2, field_height / 2, 0)
+                * Matrix_Rotate_Z(PI / 2)
+                * Matrix_Scale(field_height / 2, 1, field_length / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(-field_width / 2, field_height / 2, 0)
+                * Matrix_Rotate_Z(-PI / 2)
+                * Matrix_Scale(field_height / 2, 1, field_length / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        // Desenho as paredes traseiras
+        // XXXXXXXXXXXXX
+        // XXXXXXXXXXXXX
+        // XXXXXXXXXXXXX
+        // XXXXX   XXXXX
+        // XXXXX   XXXXX
+
+        model = Matrix_Translate(0, goal_height + (field_height - goal_height) / 2, field_length / 2)
+                * Matrix_Rotate_X(-PI / 2)
+                * Matrix_Scale(field_width / 2, 1, (field_height - goal_height) / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(goal_width / 2 + (field_width - goal_width) / 4, goal_height / 2, field_length / 2)
+                * Matrix_Rotate_X(-PI / 2)
+                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(-(goal_width / 2 + (field_width - goal_width) / 4), goal_height / 2, field_length / 2)
+                * Matrix_Rotate_X(-PI / 2)
+                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+
+        model = Matrix_Translate(0, goal_height + (field_height - goal_height) / 2, -field_length / 2)
+                * Matrix_Rotate_X(PI / 2)
+                * Matrix_Scale(field_width / 2, 1, (field_height - goal_height) / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(goal_width / 2 + (field_width - goal_width) / 4, goal_height / 2, -field_length / 2)
+                * Matrix_Rotate_X(PI / 2)
+                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        model = Matrix_Translate(-(goal_width / 2 + (field_width - goal_width) / 4), goal_height / 2, -field_length / 2)
+                * Matrix_Rotate_X(PI / 2)
+                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("plane");
+
+        // Desenho os carros
+
+        model = Matrix_Translate(our_car_position.x, our_car_position.y, our_car_position.z)
+                * Matrix_Rotate_Y(our_car_direction_angle + PI)
+                * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, OUR_CAR);
+        DrawVirtualObject("carrito");
+
+        model = Matrix_Translate(enemy_car_position.x, enemy_car_position.y, enemy_car_position.z)
+                * Matrix_Rotate_Y(enemy_car_direction_angle + PI)
+                * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, ENEMY_CAR);
+        DrawVirtualObject("carrito");
 
         // Pegamos um vértice com coordenadas de modelo (0.5, 0.5, 0.5, 1) e o
         // passamos por todos os sistemas de coordenadas armazenados nas
