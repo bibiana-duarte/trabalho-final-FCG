@@ -14,21 +14,20 @@
 #define SOUTH glm::vec4(0, 0, 1, 0)
 #define NORTH glm::vec4(0, 0, -1, 0)
 
-extern GLfloat ball_diameter;
-extern GLfloat ball_radius;
+extern GLfloat BALL_DIAMETER;
+extern GLfloat BALL_RADIUS;
 
-extern GLfloat field_length;
-extern GLfloat field_width;
-extern GLfloat field_height;
+extern GLfloat FIELD_LENGTH;
+extern GLfloat FIELD_WIDTH;
+extern GLfloat FIELD_HEIGHT;
 
-extern GLfloat goal_length;
-extern GLfloat goal_width;
-extern GLfloat goal_height;
+extern GLfloat GOAL_WIDTH;
+extern GLfloat GOAL_HEIGHT;
 
-extern GLfloat car_length;
-extern GLfloat car_width;
-extern GLfloat car_height;
+extern GLfloat CAR_LENGTH;
+extern GLfloat CAR_WIDTH;
+extern GLfloat CAR_HEIGHT;
 
-extern GLfloat car_to_ball_initial_distance;
+extern GLfloat CAR_TO_BALL_INITIAL_DISTANCE;
 
 #endif

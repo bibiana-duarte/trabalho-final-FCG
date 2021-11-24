@@ -46,6 +46,7 @@
 // Headers locais, definidos na pasta "include/"
 #include "../include/utils.h"
 #include "../include/matrices.h"
+#include "../include/stb_image.h"
 
 #include "../include/constants.hpp"
 #include "../include/collisions.hpp"
@@ -114,10 +115,10 @@ void TextRendering_ShowFramesPerSecond(GLFWwindow* window);
 
 // Funções callback para comunicação com o sistema operacional e interação do
 // usuário. Veja mais comentários nas definições das mesmas, abaixo.
-void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 void ErrorCallback(int error, const char* description);
 void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mode);
-void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+
+void LoadTextureImage(const char* filename);
 
 // Definimos uma estrutura que armazenará dados necessários para renderizar
 // cada objeto da cena virtual.
@@ -144,33 +145,11 @@ std::stack<glm::mat4>  g_MatrixStack;
 // Razão de proporção da janela (largura/altura). Veja função FramebufferSizeCallback().
 float g_ScreenRatio = 1.0f;
 
-// Ângulos de Euler que controlam a rotação de um dos cubos da cena virtual
-float g_AngleX = 0.0f;
-float g_AngleY = 0.0f;
-float g_AngleZ = 0.0f;
-
-// "g_LeftMouseButtonPressed = true" se o usuário está com o botão esquerdo do mouse
-// pressionado no momento atual. Veja função MouseButtonCallback().
-bool g_LeftMouseButtonPressed = false;
-bool g_RightMouseButtonPressed = false; // Análogo para botão direito do mouse
-bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mouse
-
 // Variáveis que definem a câmera em coordenadas esféricas, controladas pelo
 // usuário através do mouse (veja função CursorPosCallback()). A posição
 // efetiva da câmera é calculada dentro da função main(), dentro do loop de
 // renderização.
 float g_CameraDistance = 3.5f; // Distância da câmera para a origem
-
-// Variáveis que controlam rotação do antebraço
-float g_ForearmAngleZ = 0.0f;
-float g_ForearmAngleX = 0.0f;
-
-// Variáveis que controlam translação do torso
-float g_TorsoPositionX = 0.0f;
-float g_TorsoPositionY = 0.0f;
-
-// Variável que controla o tipo de projeção utilizada: perspectiva ou ortográfica.
-bool g_UsePerspectiveProjection = true;
 
 // Variável que controla se o texto informativo será mostrado na tela.
 bool g_ShowInfoText = true;
@@ -184,42 +163,52 @@ GLint view_uniform;
 GLint projection_uniform;
 GLint object_id_uniform;
 
-glm::vec4 our_car_position;
-glm::vec4 enemy_car_position;
+GLuint g_NumLoadedTextures = 0;
+
+ // Variaveis de posição
+glm::vec4 purple_car_position;
+glm::vec4 orange_car_position;
 glm::vec4 ball_position;
 
-glm::vec4 our_car_speed = ZERO;
-glm::vec4 enemy_car_speed = ZERO;
+// Variaveis de velocidade
+glm::vec4 purple_car_speed = ZERO;
+glm::vec4 orange_car_speed = ZERO;
 glm::vec4 ball_speed = ZERO;
 
-glm::vec4 our_car_direction = NORTH;
-glm::vec4 enemy_car_direction = SOUTH;
+// Inicialização da direção dos carros
+glm::vec4 purple_car_direction = NORTH;
+glm::vec4 orange_car_direction = SOUTH;
 
-GLfloat our_camera_direction = 0;
-GLfloat enemy_camera_direction = 0;
+GLfloat purple_car_direction_angle;
+GLfloat orange_car_direction_angle;
 
-GLfloat our_car_direction_angle;
-GLfloat enemy_car_direction_angle;
+ 
+GLboolean is_purple_car_looking_at_ball = false;
+GLboolean is_orange_car_looking_at_ball = false;
 
-GLboolean is_looking_at_ball = false;
-
+// Declaração e inicialização das variaveis de tempo
 GLfloat last_frame_time;
 GLfloat current_frame_time = glfwGetTime();
 GLfloat time_between_frames;
 
-GLboolean is_our_car_moving_left = false;
-GLboolean is_our_car_moving_right = false;
-GLboolean is_our_car_moving_front = false;
-GLboolean is_our_car_moving_back = false;
-GLboolean is_our_camera_looking_back = false;
+GLboolean is_purple_car_moving_left = false;
+GLboolean is_purple_car_moving_right = false;
+GLboolean is_purple_car_moving_front = false;
+GLboolean is_purple_car_moving_back = false;
+GLboolean is_purple_camera_looking_back = false;
 
-GLboolean is_enemy_car_moving_left = false;
-GLboolean is_enemy_car_moving_right = false;
-GLboolean is_enemy_car_moving_front = false;
-GLboolean is_enemy_car_moving_back = false;
-GLboolean is_enemy_camera_looking_back = false;
+GLboolean is_orange_car_moving_left = false;
+GLboolean is_orange_car_moving_right = false;
+GLboolean is_orange_car_moving_front = false;
+GLboolean is_orange_car_moving_back = false;
+GLboolean is_orange_camera_looking_back = false;
 
-GLboolean is_our_turn = true;
+GLboolean is_ball_returning = false;
+GLfloat ball_returning_progress;
+glm::vec4 ball_returning_point_1;
+glm::vec4 ball_returning_point_2;
+glm::vec4 ball_returning_point_3;
+glm::vec4 ball_returning_point_4;
 
 int main(int argc, char* argv[])
 {
@@ -250,8 +239,8 @@ int main(int argc, char* argv[])
     // Criamos uma janela do sistema operacional, com 800 colunas e 600 linhas
     // de pixels, e com título "INF01047 ...".
     GLFWwindow* window;
-    window = glfwCreateWindow(1600, 720, "Carritos", NULL, NULL);
-    g_ScreenRatio = 1600.0f / 720.0f;
+    window = glfwCreateWindow(1920, 1080, "Carritos", glfwGetPrimaryMonitor(), NULL);
+    g_ScreenRatio = 1920.0f / 1080.0f / 2;
     if (!window)
     {
         glfwTerminate();
@@ -262,8 +251,6 @@ int main(int argc, char* argv[])
     // Definimos a função de callback que será chamada sempre que o usuário
     // pressionar alguma tecla do teclado ...
     glfwSetKeyCallback(window, KeyCallback);
-    // ... ou clicar os botões do mouse ...
-    glfwSetMouseButtonCallback(window, MouseButtonCallback);
 
     // Indicamos que as chamadas OpenGL deverão renderizar nesta janela
     glfwMakeContextCurrent(window);
@@ -271,12 +258,6 @@ int main(int argc, char* argv[])
     // Carregamento de todas funções definidas por OpenGL 3.3, utilizando a
     // biblioteca GLAD.
     gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
-
-    // // Definimos a função de callback que será chamada sempre que a janela for
-    // // redimensionada, por consequência alterando o tamanho do "framebuffer"
-    // // (região de memória onde são armazenados os pixels da imagem).
-    // glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
-    // FramebufferSizeCallback(window, 1280, 720); // Forçamos a chamada do callback acima, para definir g_ScreenRatio.
 
     // Imprimimos no terminal informações sobre a GPU do sistema
     const GLubyte *vendor      = glGetString(GL_VENDOR);
@@ -290,6 +271,9 @@ int main(int argc, char* argv[])
     // para renderização. Veja slides 176-196 do documento Aula_03_Rendering_Pipeline_Grafico.pdf.
     //
     LoadShadersFromFiles();
+
+    LoadTextureImage("../../data/grass.jpg");
+    LoadTextureImage("../../data/wall.jpg");
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/sphere.obj");
@@ -327,24 +311,22 @@ int main(int argc, char* argv[])
     glm::mat4 the_model;
     glm::mat4 the_view;
 
-    ball_position = glm::vec4(0, ball_radius, 0, 1);
-    our_car_position = glm::vec4(0, car_height / 2, car_to_ball_initial_distance, 1);
-    enemy_car_position = glm::vec4(0, car_height / 2, -car_to_ball_initial_distance, 1);
+    // Inicialização da posição da bola e dos carros
+    ball_position = glm::vec4(0, BALL_RADIUS, 0, 1); 
+    purple_car_position = glm::vec4(0, CAR_HEIGHT / 2, CAR_TO_BALL_INITIAL_DISTANCE, 1);
+    orange_car_position = glm::vec4(0, CAR_HEIGHT / 2, -CAR_TO_BALL_INITIAL_DISTANCE, 1);
 
     // Ficamos em loop, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
+        // Atualização do tempo passado entre os frames
         last_frame_time = current_frame_time;
         current_frame_time = glfwGetTime();
         time_between_frames = current_frame_time - last_frame_time;
 
         // Aqui executamos as operações de renderização
 
-        // Definimos a cor do "fundo" do framebuffer como branco.  Tal cor é
-        // definida como coeficientes RGBA: Red, Green, Blue, Alpha; isto é:
-        // Vermelho, Verde, Azul, Alpha (valor de transparência).
-        // Conversaremos sobre sistemas de cores nas aulas de Modelos de Iluminação.
-        //
+        // Definição da cor do céu 
         //           R     G     B      A
         glClearColor(0.6f, 0.8f, 0.95f, 1.0f);
 
@@ -355,141 +337,196 @@ int main(int argc, char* argv[])
         // Pedimos para a GPU utilizar o programa de GPU criado acima (contendo
         // os shaders de vértice e fragmentos).
         glUseProgram(program_id);
+        
+        // As texturas são passadas para a GPU
+        glUniform1i(glGetUniformLocation(program_id, "floor_color"), 0);
+        glUniform1i(glGetUniformLocation(program_id, "walls_color"), 1);
 
-        if (norm(our_car_speed) > 0)
+
+        // Funções de atrito da bola e dos carros, se o carro estão de lado o atrito é maior 
+        if (norm(purple_car_speed) > 0)
         {
-            our_car_speed *= std::pow(0.6, time_between_frames);
-            our_car_speed *= std::pow(0.02, time_between_frames * (1 - abs(our_car_direction.x * our_car_speed.x + our_car_direction.z * our_car_speed.z) / norm(our_car_speed)));
+            purple_car_speed *= std::pow(0.6, time_between_frames);
+            purple_car_speed *= std::pow(0.02, time_between_frames * (1 - abs(purple_car_direction.x * purple_car_speed.x + purple_car_direction.z * purple_car_speed.z) / norm(purple_car_speed)));
         }
-        // our_car_speed *= std::pow(0.3, time_between_frames);
-        enemy_car_speed *= std::pow(0.3, time_between_frames);
+        if (norm(orange_car_speed) > 0)
+        {
+            orange_car_speed *= std::pow(0.6, time_between_frames);
+            orange_car_speed *= std::pow(0.02, time_between_frames * (1 - abs(orange_car_direction.x * orange_car_speed.x + orange_car_direction.z * orange_car_speed.z) / norm(orange_car_speed)));
+        }
         ball_speed *= std::pow(0.8, time_between_frames);
         
-        glm::vec4 our_car_new_position = our_car_position;
-        glm::vec4 our_car_new_speed = our_car_speed;
-        glm::vec4 our_car_new_direction = our_car_direction;
+        // Criação de variaveis temporarias para possivel novo valor da posição, velocidade e direção do carro
+        glm::vec4 purple_car_new_position = purple_car_position;
+        glm::vec4 purple_car_new_speed = purple_car_speed;
+        glm::vec4 purple_car_new_direction = purple_car_direction;
 
-        if (is_our_car_moving_front)
-        {
-            our_car_new_speed += 30.0f * time_between_frames * our_car_direction;
-        }
-        if (is_our_car_moving_back)
-        {
-            our_car_new_speed -= 20.0f * time_between_frames * our_car_direction;
-        }
 
-        our_car_new_position += time_between_frames * our_car_new_speed;
-
-        if (is_our_car_moving_right)
+        // Atualiza a velocidade do carro, usando o tempo entre os frames. Se o carro está dando ré, a aceleração é menor
+        if (is_purple_car_moving_front)
         {
-            our_car_new_direction = Matrix_Rotate_Y(-5.0f * time_between_frames) * our_car_new_direction;
+            purple_car_new_speed += 30.0f * time_between_frames * purple_car_direction;
         }
-        if (is_our_car_moving_left)
+        if (is_purple_car_moving_back)
         {
-            our_car_new_direction = Matrix_Rotate_Y(+5.0f * time_between_frames) * our_car_new_direction;
+            purple_car_new_speed -= 20.0f * time_between_frames * purple_car_direction;
         }
 
-        if (not is_colliding_car_to_scenario(our_car_new_position, our_car_new_direction))
+        // Atualiza a posição do carro 
+        purple_car_new_position += time_between_frames * purple_car_new_speed;
+
+        // Atualiza a direção do carro, quanto maior a velocidade do carro, mais rápido ele gira
+        if (is_purple_car_moving_right)
         {
-            our_car_position = our_car_new_position;
-            our_car_speed = our_car_new_speed;
-            our_car_direction = our_car_new_direction;
+            purple_car_new_direction = Matrix_Rotate_Y(-norm(purple_car_speed) / 8 * time_between_frames) * purple_car_new_direction;
+        }
+        if (is_purple_car_moving_left)
+        {
+            purple_car_new_direction = Matrix_Rotate_Y(+norm(purple_car_speed) / 8 * time_between_frames) * purple_car_new_direction;
+        }
+
+        // Verifica se há colisão do carro com o cenário, se tiver a velocidade do carro é zerada, senão, a posição, velocidade e direção são definitivamente atualizadas
+        if (not is_colliding_car_to_scenario(purple_car_new_position, purple_car_new_direction))
+        {
+            purple_car_position = purple_car_new_position;
+            purple_car_speed = purple_car_new_speed;
+            purple_car_direction = purple_car_new_direction;
         }
         else
         {
-            our_car_speed = ZERO;
+            purple_car_speed = ZERO;
         }
         
-        glm::vec4 enemy_car_new_position = enemy_car_position;
-        glm::vec4 enemy_car_new_speed = enemy_car_speed;
-        glm::vec4 enemy_car_new_direction = enemy_car_direction;
+        // Aqui as mesmas funções são implementadas, porém para o carro laranja
 
-        if (is_enemy_car_moving_front)
-        {
-            enemy_car_new_speed += 30.0f * time_between_frames * enemy_car_direction;
-        }
-        if (is_enemy_car_moving_back)
-        {
-            enemy_car_new_speed -= 20.0f * time_between_frames * enemy_car_direction;
-        }
+        glm::vec4 orange_car_new_position = orange_car_position;
+        glm::vec4 orange_car_new_speed = orange_car_speed;
+        glm::vec4 orange_car_new_direction = orange_car_direction;
 
-        enemy_car_new_position += time_between_frames * enemy_car_new_speed;
-
-        if (is_enemy_car_moving_right)
+        if (is_orange_car_moving_front)
         {
-            enemy_car_new_direction = Matrix_Rotate_Y(-5.0f * time_between_frames) * enemy_car_new_direction;
+            orange_car_new_speed += 30.0f * time_between_frames * orange_car_direction;
         }
-        if (is_enemy_car_moving_left)
+        if (is_orange_car_moving_back)
         {
-            enemy_car_new_direction = Matrix_Rotate_Y(+5.0f * time_between_frames) * enemy_car_new_direction;
+            orange_car_new_speed -= 20.0f * time_between_frames * orange_car_direction;
         }
 
-        if (not is_colliding_car_to_scenario(enemy_car_new_position, enemy_car_new_direction))
+        orange_car_new_position += time_between_frames * orange_car_new_speed;
+
+        if (is_orange_car_moving_right)
         {
-            enemy_car_position = enemy_car_new_position;
-            enemy_car_speed = enemy_car_new_speed;
-            enemy_car_direction = enemy_car_new_direction;
+            orange_car_new_direction = Matrix_Rotate_Y(-norm(orange_car_speed) / 8 * time_between_frames) * orange_car_new_direction;
+        }
+        if (is_orange_car_moving_left)
+        {
+            orange_car_new_direction = Matrix_Rotate_Y(+norm(orange_car_speed) / 8 * time_between_frames) * orange_car_new_direction;
+        }
+
+        if (not is_colliding_car_to_scenario(orange_car_new_position, orange_car_new_direction))
+        {
+            orange_car_position = orange_car_new_position;
+            orange_car_speed = orange_car_new_speed;
+            orange_car_direction = orange_car_new_direction;
         }
         else
         {
-            enemy_car_speed = ZERO;
+            orange_car_speed = ZERO;
         }
 
-        our_car_direction_angle = atan2(-our_car_direction.x, -our_car_direction.z);
-        enemy_car_direction_angle = atan2(-enemy_car_direction.x, -enemy_car_direction.z);
+        // Define o angulo da direção
+        purple_car_direction_angle = atan2(-purple_car_direction.x, -purple_car_direction.z);
+        orange_car_direction_angle = atan2(-orange_car_direction.x, -orange_car_direction.z);
 
-        glm::vec4 ball_new_position = ball_position;
-
-        ball_new_position += time_between_frames * ball_speed;
-
-        if (is_colliding_ball_to_car(ball_new_position, our_car_position, our_car_direction))
+        // Funções de movimentação da bola
+        // Se a bola está voltando do gol ou não
+        if (is_ball_returning)
         {
-            ball_speed = 35.0f * (ball_new_position - our_car_position) / norm(ball_new_position - our_car_position);
-            ball_speed.y = 0;
-            is_our_turn = false;
-        }
+            //  Se a bola está voltando do gol, é usado curvas de Bezier para fazer a movimentação da bola de volta ao centro. 
+            ball_returning_progress += time_between_frames / 6;
 
-        if (is_colliding_ball_to_car(ball_new_position, enemy_car_position, enemy_car_direction))
+            if (ball_returning_progress >= 1)
+            {
+                ball_returning_progress = 1;
+                is_ball_returning = false;
+                ball_speed = ZERO;
+            }
+
+            float p = ball_returning_progress * ball_returning_progress * ball_returning_progress;
+            float q = 1 - p;
+
+            ball_position = 
+                1 * q*q*q * ball_returning_point_1 +
+                3 * p*q*q * ball_returning_point_2 +
+                3 * p*p*q * ball_returning_point_3 +
+                1 * p*p*p * ball_returning_point_4;
+            ball_position.w = 1;
+        }
+        else
         {
-            ball_speed = 35.0f * (ball_new_position - enemy_car_position) / norm(ball_new_position - enemy_car_position);
-            ball_speed.y = 0;
-            is_our_turn = true;
+            // A possivel nova posição da bola é salva em uma variavel temporaria
+            glm::vec4 ball_new_position = ball_position;
+
+            ball_new_position += time_between_frames * ball_speed;
+
+            // Se a bola colide com algum dos carros, ela vai na direção contrária do carro, e ambos, a bola e o carro, perdem velocidade, mas a bola ganha velocidade do impacto (quanto mais velocidade o carro possuia, mais veloz é o "retorno" da bola)
+            if (is_colliding_ball_to_car(ball_new_position, purple_car_position, purple_car_direction))
+            {
+                ball_speed = (1.3f * norm(purple_car_speed) + norm(ball_speed) / 1.3f) * (ball_new_position - purple_car_position) / norm(ball_new_position - purple_car_position);
+                ball_speed.y = 0;
+                purple_car_speed /= 1.5f;
+            }
+            if (is_colliding_ball_to_car(ball_new_position, orange_car_position, orange_car_direction))
+            {
+                ball_speed = (1.3f * norm(orange_car_speed) + norm(ball_speed) / 1.3f) * (ball_new_position - orange_car_position) / norm(ball_new_position - orange_car_position);
+                ball_speed.y = 0;
+                orange_car_speed /= 1.5f;
+            }
+
+            // Se a bola colide com alguma parede, ela reflete 
+            if (is_colliding_ball_to_north_wall(ball_new_position) or is_colliding_ball_to_south_wall(ball_new_position))
+            {
+                ball_speed.z = -ball_speed.z;
+            }
+            if (is_colliding_ball_to_east_wall(ball_new_position) or is_colliding_ball_to_west_wall(ball_new_position))
+            {
+                ball_speed.x = -ball_speed.x;
+            }
+
+            // Verica se a bola saiu do cenário, se sim, ela cai
+            if (abs(ball_new_position.z) > FIELD_LENGTH / 2)
+            {
+                ball_speed.y -= std::pow(9.8f, time_between_frames); 
+            }
+
+            ball_position = ball_new_position;
+
+            // Se a bola está abaixo de -5 metros, ela retorna ao centro
+            if (ball_position.y <= -5)
+            {
+                is_ball_returning = true;
+                ball_returning_progress = 0;
+
+                if (ball_position.z > 0)
+                {
+                    ball_returning_point_1 = ball_position;
+                    ball_returning_point_2 = glm::vec4(0, FIELD_HEIGHT + 5, FIELD_LENGTH / 2 + 10, 1);
+                    ball_returning_point_3 = glm::vec4(0, FIELD_HEIGHT + 12, FIELD_LENGTH / 2, 1);
+                    ball_returning_point_4 = glm::vec4(0, BALL_RADIUS, 0, 1);
+                }
+                else
+                {
+                    ball_returning_point_1 = ball_position;
+                    ball_returning_point_2 = glm::vec4(0, FIELD_HEIGHT + 5, -FIELD_LENGTH / 2 - 10, 1);
+                    ball_returning_point_3 = glm::vec4(0, FIELD_HEIGHT + 12, -FIELD_LENGTH / 2, 1);
+                    ball_returning_point_4 = glm::vec4(0, BALL_RADIUS, 0, 1);
+                }
+            }
         }
-
-        if (is_colliding_ball_to_scenario(ball_new_position) and not (is_colliding_ball_to_our_goal(ball_new_position) or is_colliding_ball_to_enemy_goal(ball_new_position) or abs(ball_new_position.z) > field_length / 2))
-        {
-            ball_speed = -20.0f * ball_new_position / norm(ball_new_position - enemy_car_position);
-            ball_speed.y = 0;
-        }
-
-        if (abs(ball_new_position.z) > field_length / 2)
-        {
-            ball_speed.y -= std::pow(9.8f, time_between_frames); 
-        }
-
-        ball_position = ball_new_position;
-
-        // GLint screen_width, screen_height;
-        // glfwGetWindowSize(window, &screen_width, &screen_height);
-        // GLdouble cursor_position_x, cursor_position_y;
-        // glfwGetCursorPos(window, &cursor_position_x, &cursor_position_y);
-        // glfwSetCursorPos(window, screen_width / 2, screen_height / 2);
-        // GLdouble cursor_position = std::min(1.0, std::max(-1.0, 2 * (cursor_position_x / screen_width) - 1));
-        // our_camera_direction -= 1.5f * cursor_position;
-        // while (our_camera_direction < PI)
-        // {
-        //     our_camera_direction += 2 * PI;
-        // }
-        // while (our_camera_direction >= PI)
-        // {
-        //     our_camera_direction -= 2 * PI;
-        // }
 
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
-
         glm::vec4 car_position;
-        GLfloat camera_direction;
         GLfloat car_direction_angle;
         GLboolean is_camera_looking_back;
         glm::vec4 camera_offset_to_car;
@@ -497,64 +534,50 @@ int main(int argc, char* argv[])
         glm::vec4 camera_view_vector;
         glm::vec4 camera_up_vector;
         glm::mat4 view;
+        float field_of_view;
         glm::mat4 projection;
-
 
         // Note que, no sistema de coordenadas da câmera, os planos near e far
         // estão no sentido negativo! Veja slides 176-204 do documento Aula_09_Projecoes.pdf.
         float nearplane = -0.1f;  // Posição do "near plane"
-        float farplane  = field_width + field_length + field_height; // Posição do "far plane"
+        float farplane  = FIELD_WIDTH + FIELD_LENGTH + FIELD_HEIGHT; // Posição do "far plane"
 
         glm::mat4 model = Matrix_Identity(); // Transformação identidade de modelagem
 
+        
+        car_position = purple_car_position;
+        car_direction_angle = purple_car_direction_angle;
+        is_camera_looking_back = is_purple_camera_looking_back;
 
-        car_position = our_car_position;
-        camera_direction = our_camera_direction;
-        car_direction_angle = our_car_direction_angle;
-        is_camera_looking_back = is_our_camera_looking_back;
-        glViewport(0, 0, 800, 720);
+        // Definição da tela do carro roxo
+        glViewport(0, 0, 1920/2, 1080);
 
-        if (is_looking_at_ball)
+        //  Posicionamento da cãmera, se o jogador estiver olhando para bola, a câmera á posicionada 1.8m acima do carro, caso contrário, a câmera é posicionada acima do carro ,e , se estiver olhando para a frente, um pouco para trás dele, caso o contrário, um pouco a frente dele 
+        if (is_purple_car_looking_at_ball)
         {
-            camera_offset_to_car = glm::vec4(0, 1.8, 2, 1);
+            camera_offset_to_car = glm::vec4(0, 1.8, 0, 1);
         }
         else
         {
-            camera_offset_to_car = glm::vec4(0, 1.8, 2 + 5 * cos((is_camera_looking_back? PI : 0) + camera_direction), 1); // Quando olha pra frente (angulo 0) fica 7 metros atrás do carro, quando olha pra trás fica 3 metros a frente do carro, e sempre 1,8 metros acima do carro uhul
+            camera_offset_to_car = glm::vec4(0, 1.8, (is_purple_camera_looking_back? -7 : 7), 1);
         }
         camera_position = Matrix_Translate(car_position.x, car_position.y, car_position.z) * Matrix_Rotate_Y(car_direction_angle) * camera_offset_to_car;
-        if (is_looking_at_ball)
+        if (is_purple_car_looking_at_ball)
         {
             camera_view_vector = ball_position - camera_position; // Câmera Lookat
         }
         else
         {
-            camera_view_vector = Matrix_Rotate_Y((is_camera_looking_back? PI : 0) + camera_direction + car_direction_angle) * NORTH;
+            camera_view_vector = Matrix_Rotate_Y((is_camera_looking_back? PI : 0) + car_direction_angle) * NORTH;
         }
         camera_up_vector = UP;
 
         view = Matrix_Camera_View(camera_position, camera_view_vector, camera_up_vector);
 
-        if (g_UsePerspectiveProjection)
-        {
-            // Projeção Perspectiva.
-            // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
-            float field_of_view = 3.141592 / 3.0f;
-            projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
-        }
-        else
-        {
-            // Projeção Ortográfica.
-            // Para definição dos valores l, r, b, t ("left", "right", "bottom", "top"),
-            // PARA PROJEÇÃO ORTOGRÁFICA veja slides 219-224 do documento Aula_09_Projecoes.pdf.
-            // Para simular um "zoom" ortográfico, computamos o valor de "t"
-            // utilizando a variável g_CameraDistance.
-            float t = 1.5f * g_CameraDistance/2.5f;
-            float b = -t;
-            float r = t * g_ScreenRatio;
-            float l = -r;
-            projection = Matrix_Orthographic(l, r, b, t, nearplane, farplane);
-        }
+        // Projeção Perspectiva.
+        // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
+        field_of_view = PI * 2/5;
+        projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
 
         // Enviamos as matrizes "view" e "projection" para a placa de vídeo
         // (GPU). Veja o arquivo "shader_vertex.glsl", onde estas são
@@ -562,37 +585,38 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
         
+        // Definição de constantes para os objetos 
         #define BALL 0
         #define FLOOR 1
         #define WALL 2
-        #define OUR_CAR 3
-        #define ENEMY_CAR 4
+        #define PURPLE_CAR 3
+        #define ORANGE_CAR 4
 
         // Desenho a bola
         model = Matrix_Translate(ball_position.x, ball_position.y, ball_position.z)
-                * Matrix_Scale(ball_diameter / 2, ball_diameter / 2, ball_diameter / 2);
+                * Matrix_Scale(BALL_DIAMETER / 2, BALL_DIAMETER / 2, BALL_DIAMETER / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, BALL);
         DrawVirtualObject("sphere");
 
         // Desenho o chão
         model = Matrix_Translate(0, 0, 0)
-                * Matrix_Scale(field_width / 2, 1, field_length / 2);
+                * Matrix_Scale(FIELD_WIDTH / 2, 1, FIELD_LENGTH / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, FLOOR);
         DrawVirtualObject("plane");
 
         // Desenho as paredes laterais
-        model = Matrix_Translate(field_width / 2, field_height / 2, 0)
+        model = Matrix_Translate(FIELD_WIDTH / 2, FIELD_HEIGHT / 2, 0)
                 * Matrix_Rotate_Z(PI / 2)
-                * Matrix_Scale(field_height / 2, 1, field_length / 2);
+                * Matrix_Scale(FIELD_HEIGHT / 2, 1, FIELD_LENGTH / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(-field_width / 2, field_height / 2, 0)
+        model = Matrix_Translate(-FIELD_WIDTH / 2, FIELD_HEIGHT / 2, 0)
                 * Matrix_Rotate_Z(-PI / 2)
-                * Matrix_Scale(field_height / 2, 1, field_length / 2);
+                * Matrix_Scale(FIELD_HEIGHT / 2, 1, FIELD_LENGTH / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
@@ -604,112 +628,98 @@ int main(int argc, char* argv[])
         // XXXXX   XXXXX
         // XXXXX   XXXXX
 
-        model = Matrix_Translate(0, goal_height + (field_height - goal_height) / 2, field_length / 2)
+        model = Matrix_Translate(0, GOAL_HEIGHT + (FIELD_HEIGHT - GOAL_HEIGHT) / 2, FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(-PI / 2)
-                * Matrix_Scale(field_width / 2, 1, (field_height - goal_height) / 2);
+                * Matrix_Scale(FIELD_WIDTH / 2, 1, (FIELD_HEIGHT - GOAL_HEIGHT) / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(goal_width / 2 + (field_width - goal_width) / 4, goal_height / 2, field_length / 2)
+        model = Matrix_Translate(GOAL_WIDTH / 2 + (FIELD_WIDTH - GOAL_WIDTH) / 4, GOAL_HEIGHT / 2, FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(-PI / 2)
-                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+                * Matrix_Scale((FIELD_WIDTH / 2 - GOAL_WIDTH / 2) / 2, 1, GOAL_HEIGHT / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(-(goal_width / 2 + (field_width - goal_width) / 4), goal_height / 2, field_length / 2)
+        model = Matrix_Translate(-(GOAL_WIDTH / 2 + (FIELD_WIDTH - GOAL_WIDTH) / 4), GOAL_HEIGHT / 2, FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(-PI / 2)
-                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+                * Matrix_Scale((FIELD_WIDTH / 2 - GOAL_WIDTH / 2) / 2, 1, GOAL_HEIGHT / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
 
-        model = Matrix_Translate(0, goal_height + (field_height - goal_height) / 2, -field_length / 2)
+        model = Matrix_Translate(0, GOAL_HEIGHT + (FIELD_HEIGHT - GOAL_HEIGHT) / 2, -FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(PI / 2)
-                * Matrix_Scale(field_width / 2, 1, (field_height - goal_height) / 2);
+                * Matrix_Scale(FIELD_WIDTH / 2, 1, (FIELD_HEIGHT - GOAL_HEIGHT) / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(goal_width / 2 + (field_width - goal_width) / 4, goal_height / 2, -field_length / 2)
+        model = Matrix_Translate(GOAL_WIDTH / 2 + (FIELD_WIDTH - GOAL_WIDTH) / 4, GOAL_HEIGHT / 2, -FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(PI / 2)
-                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+                * Matrix_Scale((FIELD_WIDTH / 2 - GOAL_WIDTH / 2) / 2, 1, GOAL_HEIGHT / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(-(goal_width / 2 + (field_width - goal_width) / 4), goal_height / 2, -field_length / 2)
+        model = Matrix_Translate(-(GOAL_WIDTH / 2 + (FIELD_WIDTH - GOAL_WIDTH) / 4), GOAL_HEIGHT / 2, -FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(PI / 2)
-                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+                * Matrix_Scale((FIELD_WIDTH / 2 - GOAL_WIDTH / 2) / 2, 1, GOAL_HEIGHT / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
         // Desenho os carros
 
-        model = Matrix_Translate(our_car_position.x, our_car_position.y, our_car_position.z)
-                * Matrix_Rotate_Y(our_car_direction_angle + PI)
-                * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
+        model = Matrix_Translate(purple_car_position.x, purple_car_position.y, purple_car_position.z)
+                * Matrix_Rotate_Y(purple_car_direction_angle + PI)
+                * Matrix_Scale(CAR_WIDTH / 2, CAR_HEIGHT / 2, CAR_LENGTH / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, OUR_CAR);
+        glUniform1i(object_id_uniform, PURPLE_CAR);
         DrawVirtualObject("carrito");
 
-        model = Matrix_Translate(enemy_car_position.x, enemy_car_position.y, enemy_car_position.z)
-                * Matrix_Rotate_Y(enemy_car_direction_angle + PI)
-                * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
+        model = Matrix_Translate(orange_car_position.x, orange_car_position.y, orange_car_position.z)
+                * Matrix_Rotate_Y(orange_car_direction_angle + PI)
+                * Matrix_Scale(CAR_WIDTH / 2, CAR_HEIGHT / 2, CAR_LENGTH / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, ENEMY_CAR);
+        glUniform1i(object_id_uniform, ORANGE_CAR);
         DrawVirtualObject("carrito");
 
-        car_position = enemy_car_position;
-        camera_direction = enemy_camera_direction;
-        car_direction_angle = enemy_car_direction_angle;
-        is_camera_looking_back = is_enemy_camera_looking_back;
-        glViewport(800, 0, 800, 720);
+        car_position = orange_car_position;
+        car_direction_angle = orange_car_direction_angle;
+        is_camera_looking_back = is_orange_camera_looking_back;
+        
+        glViewport(1920/2, 0, 1920/2, 1080); // Definição da tela  do carro laranja
 
-        if (is_looking_at_ball)
+
+        // Aqui são os mesmos comandos, porém para o carro laranja  
+        if (is_orange_car_looking_at_ball)
         {
-            camera_offset_to_car = glm::vec4(0, 1.8, 2, 1);
+            camera_offset_to_car = glm::vec4(0, 1.8, 0, 1);
         }
         else
         {
-            camera_offset_to_car = glm::vec4(0, 1.8, 2 + 5 * cos((is_camera_looking_back? PI : 0) + camera_direction), 1); // Quando olha pra frente (angulo 0) fica 7 metros atrás do carro, quando olha pra trás fica 3 metros a frente do carro, e sempre 1,8 metros acima do carro uhul
+            camera_offset_to_car = glm::vec4(0, 1.8, (is_orange_camera_looking_back? -7 : 7), 1);
         }
         camera_position = Matrix_Translate(car_position.x, car_position.y, car_position.z) * Matrix_Rotate_Y(car_direction_angle) * camera_offset_to_car;
-        if (is_looking_at_ball)
+        if (is_orange_car_looking_at_ball)
         {
             camera_view_vector = ball_position - camera_position; // Câmera Lookat
         }
         else
         {
-            camera_view_vector = Matrix_Rotate_Y((is_camera_looking_back? PI : 0) + camera_direction + car_direction_angle) * NORTH;
+            camera_view_vector = Matrix_Rotate_Y((is_camera_looking_back? PI : 0) + car_direction_angle) * NORTH;
         }
         camera_up_vector = UP;
 
         view = Matrix_Camera_View(camera_position, camera_view_vector, camera_up_vector);
 
-        if (g_UsePerspectiveProjection)
-        {
-            // Projeção Perspectiva.
-            // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
-            float field_of_view = 3.141592 / 3.0f;
-            projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
-        }
-        else
-        {
-            // Projeção Ortográfica.
-            // Para definição dos valores l, r, b, t ("left", "right", "bottom", "top"),
-            // PARA PROJEÇÃO ORTOGRÁFICA veja slides 219-224 do documento Aula_09_Projecoes.pdf.
-            // Para simular um "zoom" ortográfico, computamos o valor de "t"
-            // utilizando a variável g_CameraDistance.
-            float t = 1.5f * g_CameraDistance/2.5f;
-            float b = -t;
-            float r = t * g_ScreenRatio;
-            float l = -r;
-            projection = Matrix_Orthographic(l, r, b, t, nearplane, farplane);
-        }
+        // Projeção Perspectiva.
+        // Para definição do field of view (FOV), veja slides 205-215 do documento Aula_09_Projecoes.pdf.
+        field_of_view = PI * 2/5;
+        projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
 
         // Enviamos as matrizes "view" e "projection" para a placa de vídeo
         // (GPU). Veja o arquivo "shader_vertex.glsl", onde estas são
@@ -720,34 +730,34 @@ int main(int argc, char* argv[])
         #define BALL 0
         #define FLOOR 1
         #define WALL 2
-        #define OUR_CAR 3
-        #define ENEMY_CAR 4
+        #define PURPLE_CAR 3
+        #define ORANGE_CAR 4
 
         // Desenho a bola
         model = Matrix_Translate(ball_position.x, ball_position.y, ball_position.z)
-                * Matrix_Scale(ball_diameter / 2, ball_diameter / 2, ball_diameter / 2);
+                * Matrix_Scale(BALL_DIAMETER / 2, BALL_DIAMETER / 2, BALL_DIAMETER / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, BALL);
         DrawVirtualObject("sphere");
 
         // Desenho o chão
         model = Matrix_Translate(0, 0, 0)
-                * Matrix_Scale(field_width / 2, 1, field_length / 2);
+                * Matrix_Scale(FIELD_WIDTH / 2, 1, FIELD_LENGTH / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, FLOOR);
         DrawVirtualObject("plane");
 
         // Desenho as paredes laterais
-        model = Matrix_Translate(field_width / 2, field_height / 2, 0)
+        model = Matrix_Translate(FIELD_WIDTH / 2, FIELD_HEIGHT / 2, 0)
                 * Matrix_Rotate_Z(PI / 2)
-                * Matrix_Scale(field_height / 2, 1, field_length / 2);
+                * Matrix_Scale(FIELD_HEIGHT / 2, 1, FIELD_LENGTH / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(-field_width / 2, field_height / 2, 0)
+        model = Matrix_Translate(-FIELD_WIDTH / 2, FIELD_HEIGHT / 2, 0)
                 * Matrix_Rotate_Z(-PI / 2)
-                * Matrix_Scale(field_height / 2, 1, field_length / 2);
+                * Matrix_Scale(FIELD_HEIGHT / 2, 1, FIELD_LENGTH / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
@@ -759,74 +769,64 @@ int main(int argc, char* argv[])
         // XXXXX   XXXXX
         // XXXXX   XXXXX
 
-        model = Matrix_Translate(0, goal_height + (field_height - goal_height) / 2, field_length / 2)
+        model = Matrix_Translate(0, GOAL_HEIGHT + (FIELD_HEIGHT - GOAL_HEIGHT) / 2, FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(-PI / 2)
-                * Matrix_Scale(field_width / 2, 1, (field_height - goal_height) / 2);
+                * Matrix_Scale(FIELD_WIDTH / 2, 1, (FIELD_HEIGHT - GOAL_HEIGHT) / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(goal_width / 2 + (field_width - goal_width) / 4, goal_height / 2, field_length / 2)
+        model = Matrix_Translate(GOAL_WIDTH / 2 + (FIELD_WIDTH - GOAL_WIDTH) / 4, GOAL_HEIGHT / 2, FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(-PI / 2)
-                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+                * Matrix_Scale((FIELD_WIDTH / 2 - GOAL_WIDTH / 2) / 2, 1, GOAL_HEIGHT / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(-(goal_width / 2 + (field_width - goal_width) / 4), goal_height / 2, field_length / 2)
+        model = Matrix_Translate(-(GOAL_WIDTH / 2 + (FIELD_WIDTH - GOAL_WIDTH) / 4), GOAL_HEIGHT / 2, FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(-PI / 2)
-                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+                * Matrix_Scale((FIELD_WIDTH / 2 - GOAL_WIDTH / 2) / 2, 1, GOAL_HEIGHT / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
 
-        model = Matrix_Translate(0, goal_height + (field_height - goal_height) / 2, -field_length / 2)
+        model = Matrix_Translate(0, GOAL_HEIGHT + (FIELD_HEIGHT - GOAL_HEIGHT) / 2, -FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(PI / 2)
-                * Matrix_Scale(field_width / 2, 1, (field_height - goal_height) / 2);
+                * Matrix_Scale(FIELD_WIDTH / 2, 1, (FIELD_HEIGHT - GOAL_HEIGHT) / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(goal_width / 2 + (field_width - goal_width) / 4, goal_height / 2, -field_length / 2)
+        model = Matrix_Translate(GOAL_WIDTH / 2 + (FIELD_WIDTH - GOAL_WIDTH) / 4, GOAL_HEIGHT / 2, -FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(PI / 2)
-                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+                * Matrix_Scale((FIELD_WIDTH / 2 - GOAL_WIDTH / 2) / 2, 1, GOAL_HEIGHT / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
-        model = Matrix_Translate(-(goal_width / 2 + (field_width - goal_width) / 4), goal_height / 2, -field_length / 2)
+        model = Matrix_Translate(-(GOAL_WIDTH / 2 + (FIELD_WIDTH - GOAL_WIDTH) / 4), GOAL_HEIGHT / 2, -FIELD_LENGTH / 2)
                 * Matrix_Rotate_X(PI / 2)
-                * Matrix_Scale((field_width / 2 - goal_width / 2) / 2, 1, goal_height / 2);
+                * Matrix_Scale((FIELD_WIDTH / 2 - GOAL_WIDTH / 2) / 2, 1, GOAL_HEIGHT / 2);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("plane");
 
         // Desenho os carros
 
-        model = Matrix_Translate(our_car_position.x, our_car_position.y, our_car_position.z)
-                * Matrix_Rotate_Y(our_car_direction_angle + PI)
-                * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
-        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, OUR_CAR);
+        model = Matrix_Translate(purple_car_position.x, purple_car_position.y, purple_car_position.z)
+                * Matrix_Rotate_Y(purple_car_direction_angle + PI)
+                * Matrix_Scale(CAR_WIDTH / 2, CAR_HEIGHT / 2, CAR_LENGTH / 2);
+        glUniformMatrix4fv(model_uniform, 1, GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, PURPLE_CAR);
         DrawVirtualObject("carrito");
 
-        model = Matrix_Translate(enemy_car_position.x, enemy_car_position.y, enemy_car_position.z)
-                * Matrix_Rotate_Y(enemy_car_direction_angle + PI)
-                * Matrix_Scale(car_width / 2, car_height / 2, car_length / 2);
-        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, ENEMY_CAR);
+        model = Matrix_Translate(orange_car_position.x, orange_car_position.y, orange_car_position.z)
+                * Matrix_Rotate_Y(orange_car_direction_angle + PI)
+                * Matrix_Scale(CAR_WIDTH / 2, CAR_HEIGHT / 2, CAR_LENGTH / 2);
+        glUniformMatrix4fv(model_uniform, 1, GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, ORANGE_CAR);
         DrawVirtualObject("carrito");
-
-        // Pegamos um vértice com coordenadas de modelo (0.5, 0.5, 0.5, 1) e o
-        // passamos por todos os sistemas de coordenadas armazenados nas
-        // matrizes the_model, the_view, e the_projection; e escrevemos na tela
-        // as matrizes e pontos resultantes dessas transformações.
-        //glm::vec4 p_model(0.5f, 0.5f, 0.5f, 1.0f);
-        //TextRendering_ShowModelViewProjection(window, projection, view, model, p_model);
-
-        // Imprimimos na informação sobre a matriz de projeção sendo utilizada.
-        TextRendering_ShowProjection(window);
 
         // Imprimimos na tela informação sobre o número de quadros renderizados
         // por segundo (frames per second).
@@ -1235,6 +1235,58 @@ void LoadShader(const char* filename, GLuint shader_id)
     delete [] log;
 }
 
+
+void LoadTextureImage(const char* filename)
+{
+    printf("Carregando imagem \"%s\"... ", filename);
+
+    // Primeiro fazemos a leitura da imagem do disco
+    stbi_set_flip_vertically_on_load(true);
+    int width;
+    int height;
+    int channels;
+    unsigned char *data = stbi_load(filename, &width, &height, &channels, 3);
+
+    if ( data == NULL )
+    {
+        fprintf(stderr, "ERROR: Cannot open image file \"%s\".\n", filename);
+        std::exit(EXIT_FAILURE);
+    }
+
+    printf("OK (%dx%d).\n", width, height);
+
+    // Agora criamos objetos na GPU com OpenGL para armazenar a textura
+    GLuint texture_id;
+    GLuint sampler_id;
+    glGenTextures(1, &texture_id);
+    glGenSamplers(1, &sampler_id);
+
+    // Veja slides 95-96 do documento Aula_20_Mapeamento_de_Texturas.pdf
+    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+
+    // Parâmetros de amostragem da textura.
+    glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Agora enviamos a imagem lida do disco para a GPU
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+
+    GLuint textureunit = g_NumLoadedTextures;
+    glActiveTexture(GL_TEXTURE0 + textureunit);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glBindSampler(textureunit, sampler_id);
+
+    stbi_image_free(data);
+
+    g_NumLoadedTextures += 1;
+}
+
 // Esta função cria um programa de GPU, o qual contém obrigatoriamente um
 // Vertex Shader e um Fragment Shader.
 GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
@@ -1286,45 +1338,6 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
     return program_id;
 }
 
-// Definição da função que será chamada sempre que a janela do sistema
-// operacional for redimensionada, por consequência alterando o tamanho do
-// "framebuffer" (região de memória onde são armazenados os pixels da imagem).
-void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
-{
-    // Indicamos que queremos renderizar em toda região do framebuffer. A
-    // função "glViewport" define o mapeamento das "normalized device
-    // coordinates" (NDC) para "pixel coordinates".  Essa é a operação de
-    // "Screen Mapping" ou "Viewport Mapping" vista em aula ({+ViewportMapping2+}).
-    glViewport(0, 0, width, height);
-
-    // Atualizamos também a razão que define a proporção da janela (largura /
-    // altura), a qual será utilizada na definição das matrizes de projeção,
-    // tal que não ocorra distorções durante o processo de "Screen Mapping"
-    // acima, quando NDC é mapeado para coordenadas de pixels. Veja slides 205-215 do documento Aula_09_Projecoes.pdf.
-    //
-    // O cast para float é necessário pois números inteiros são arredondados ao
-    // serem divididos!
-    g_ScreenRatio = (float)width / height;
-}
-
-// Variáveis globais que armazenam a última posição do cursor do mouse, para
-// que possamos calcular quanto que o mouse se movimentou entre dois instantes
-// de tempo. Utilizadas no callback CursorPosCallback() abaixo.
-double g_LastCursorPosX, g_LastCursorPosY;
-
-// Função callback chamada sempre que o usuário aperta algum dos botões do mouse
-void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
-{
-    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
-    {
-        is_our_camera_looking_back = true;
-    }
-    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
-    {
-        is_our_camera_looking_back = false;
-    }
-}
-
 // Definição da função que será chamada sempre que o usuário pressionar alguma
 // tecla do teclado. Veja http://www.glfw.org/docs/latest/input_guide.html#input_key
 void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
@@ -1333,106 +1346,116 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
 
-    // Se o usuário apertar a tecla W, giramos o carro pra frente.
+    // Se o usuário apertar a tecla W, o carro anda pra frente.
     if (key == GLFW_KEY_W && action == GLFW_PRESS)
     {
-        is_our_car_moving_front = true;
+        is_purple_car_moving_front = true;
     }
     if (key == GLFW_KEY_W && action == GLFW_RELEASE)
     {
-        is_our_car_moving_front = false;
+        is_purple_car_moving_front = false;
     }
 
-    // Se o usuário apertar a tecla S, giramos o carro pra trás.
+    // Se o usuário apertar a tecla S, o carro anda pra trás.
     if (key == GLFW_KEY_S && action == GLFW_PRESS)
     {
-        is_our_car_moving_back = true;
+        is_purple_car_moving_back = true;
     }
     if (key == GLFW_KEY_S && action == GLFW_RELEASE)
     {
-        is_our_car_moving_back = false;
+        is_purple_car_moving_back = false;
     }
 
     // Se o usuário apertar a tecla A, giramos o carro pra esquerda.
     if (key == GLFW_KEY_A && action == GLFW_PRESS)
     {
-        is_our_car_moving_left = true;
+        is_purple_car_moving_left = true;
     }
     if (key == GLFW_KEY_A && action == GLFW_RELEASE)
     {
-        is_our_car_moving_left = false;
+        is_purple_car_moving_left = false;
     }
 
     // Se o usuário apertar a tecla D, giramos o carro pra direita.
     if (key == GLFW_KEY_D && action == GLFW_PRESS)
     {
-        is_our_car_moving_right = true;
+        is_purple_car_moving_right = true;
     }
     if (key == GLFW_KEY_D && action == GLFW_RELEASE)
     {
-        is_our_car_moving_right = false;
-    }
-    
-    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
-    {
-        our_camera_direction = 0;
+        is_purple_car_moving_right = false;
     }
 
-    // Se o usuário apertar a tecla C, mudamos o tipo de câmera yay \o/
-    if (key == GLFW_KEY_C && action == GLFW_PRESS)
+    // Se o usuário apertar a tecla LEFT CONTROL, mudamos o tipo de câmera yay \o/
+    if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_PRESS)
     {
-        is_looking_at_ball = !is_looking_at_ball;
+        is_purple_car_looking_at_ball = !is_purple_car_looking_at_ball;
     }
 
-    // Se o usuário apertar a tecla UP, giramos o carro pra frente.
+    // Se o usuário apertar a tecla LEFT SHIFT, a câmera olha na direção oposta 
+    if (key == GLFW_KEY_LEFT_SHIFT && action == GLFW_PRESS)
+    {
+        is_purple_camera_looking_back = true;
+    }
+    if (key == GLFW_KEY_LEFT_SHIFT && action == GLFW_RELEASE)
+    {
+        is_purple_camera_looking_back = false;
+    }
+
+    // Se o usuário apertar a tecla UP, o carro anda pra frente.
     if (key == GLFW_KEY_UP && action == GLFW_PRESS)
     {
-        is_enemy_car_moving_front = true;
+        is_orange_car_moving_front = true;
     }
     if (key == GLFW_KEY_UP && action == GLFW_RELEASE)
     {
-        is_enemy_car_moving_front = false;
+        is_orange_car_moving_front = false;
     }
 
-    // Se o usuário apertar a tecla DOWN, giramos o carro pra trás.
+    // Se o usuário apertar a tecla DOWN, o carro anda pra trás.
     if (key == GLFW_KEY_DOWN && action == GLFW_PRESS)
     {
-        is_enemy_car_moving_back = true;
+        is_orange_car_moving_back = true;
     }
     if (key == GLFW_KEY_DOWN && action == GLFW_RELEASE)
     {
-        is_enemy_car_moving_back = false;
+        is_orange_car_moving_back = false;
     }
 
     // Se o usuário apertar a tecla LEFT, giramos o carro pra esquerda.
     if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
     {
-        is_enemy_car_moving_left = true;
+        is_orange_car_moving_left = true;
     }
     if (key == GLFW_KEY_LEFT && action == GLFW_RELEASE)
     {
-        is_enemy_car_moving_left = false;
+        is_orange_car_moving_left = false;
     }
 
     // Se o usuário apertar a tecla RIGHT, giramos o carro pra direita.
     if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
     {
-        is_enemy_car_moving_right = true;
+        is_orange_car_moving_right = true;
     }
     if (key == GLFW_KEY_RIGHT && action == GLFW_RELEASE)
     {
-        is_enemy_car_moving_right = false;
-    }
-    
-    if (key == GLFW_KEY_RIGHT_CONTROL && action == GLFW_PRESS)
-    {
-        enemy_camera_direction = 0;
+        is_orange_car_moving_right = false;
     }
 
-    // Se o usuário apertar a tecla 0, mudamos o tipo de câmera yay \o/
-    if (key == GLFW_KEY_0 && action == GLFW_PRESS)
+    // Se o usuário apertar a tecla RIGHT CONTROL, mudamos o tipo de câmera yay \o/
+    if (key == GLFW_KEY_RIGHT_CONTROL && action == GLFW_PRESS)
     {
-        is_looking_at_ball = !is_looking_at_ball;
+        is_orange_car_looking_at_ball = !is_orange_car_looking_at_ball;
+    }
+    
+    // Se o usuário apertar a tecla RIGHT SHIFT, a câmera olha na direção oposta 
+    if (key == GLFW_KEY_RIGHT_SHIFT && action == GLFW_PRESS)
+    {
+        is_orange_camera_looking_back = true;
+    }
+    if (key == GLFW_KEY_RIGHT_SHIFT && action == GLFW_RELEASE)
+    {
+        is_orange_camera_looking_back = false;
     }
 }
 
@@ -1502,21 +1525,6 @@ void TextRendering_ShowModelViewProjection(
 
     TextRendering_PrintString(window, " Viewport matrix           NDC      In Pixel Coords.", -1.0f, 1.0f-25*pad, 1.0f);
     TextRendering_PrintMatrixVectorProductMoreDigits(window, viewport_mapping, p_ndc, -1.0f, 1.0f-26*pad, 1.0f);
-}
-
-// Escrevemos na tela qual matriz de projeção está sendo utilizada.
-void TextRendering_ShowProjection(GLFWwindow* window)
-{
-    if ( !g_ShowInfoText )
-        return;
-
-    float lineheight = TextRendering_LineHeight(window);
-    float charwidth = TextRendering_CharWidth(window);
-
-    if ( g_UsePerspectiveProjection )
-        TextRendering_PrintString(window, "Perspective", 1.0f-13*charwidth, -1.0f+2*lineheight/10, 1.0f);
-    else
-        TextRendering_PrintString(window, "Orthographic", 1.0f-13*charwidth, -1.0f+2*lineheight/10, 1.0f);
 }
 
 // Escrevemos na tela o número de quadros renderizados por segundo (frames per
